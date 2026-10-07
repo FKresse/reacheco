@@ -1,0 +1,15 @@
+{
+  "environment": "acc",
+  "horizon": 200,
+  "initial_set": {
+    "file": "sets/initial_boundary_160.json",
+    "clip": {
+      "dimension": 0,
+      "upper": 30.0
+    }
+  },
+  "goal_set": {
+    "file": "sets/goal.json"
+  },
+  "unsafe": "collision"
+}

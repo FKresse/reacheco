@@ -1,0 +1,17 @@
+{
+ "boxes": [
+  [
+   [
+    200.0,
+    -5000.0
+   ],
+   [
+    500.0,
+    5000.0
+   ]
+  ]
+ ],
+ "metadata": {
+  "description": "terminal goal: gap of at least 200 m"
+ }
+}
