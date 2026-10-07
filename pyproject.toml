@@ -7,11 +7,7 @@ name = "reacheco"
 version = "0.1.0"
 description = "Verification-guided safety repair of learned controllers"
 requires-python = ">=3.9"
-dependencies = ["torch>=2.0"]
+dependencies = ["torch>=2.0", "numpy", "gymnasium"]
 
 [tool.setuptools]
-packages = ["reacheco"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["."]
+packages = ["reacheco", "reacheco.environments"]

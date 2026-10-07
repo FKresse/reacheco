@@ -13,15 +13,21 @@ module checked against the prototype on the ACC benchmark.
 | Component | Module | State |
 |---|---|---|
 | DWC policy loading, cell values, decoding, overrides | `reacheco/policy.py` | ported |
+| Box splitting along the policy grid, goal cutting | `reacheco/boxes.py` | ported |
+| Safety specifications, problem files | `reacheco/spec.py` | ported |
+| ACC: interval propagators, training and evaluation rollouts | `reacheco/environments/acc.py` | ported |
+| Intersample tube certification (Tube part of SafeStep) | `reacheco/tubes.py` | ported |
 
 ## Layout
 
 ```
 reacheco/        the library
 checkpoints/acc/ ACC DWC controllers: dwc_b81_seed{1..5} (paper), dwc_b159 (regression)
-tools/           one-off conversion and golden-data scripts (need the prototype checkout)
-tests/           pytest suite; tests/golden holds prototype outputs at commit 9fb2fbef
+problems/acc/    verification problems of the paper (X0 cut at p <= 10, 20, 30, 100)
 ```
+
+Tests, golden data and the conversion tools live outside this repository in
+`ReachECO-dev`; the golden data are prototype outputs at commit `9fb2fbef`.
 
 ## Usage
 
@@ -31,10 +37,4 @@ from reacheco.policy import DWCPolicy
 policy = DWCPolicy.load("checkpoints/acc/dwc_b81_seed1.pt", device="cuda")
 values = policy.box_values(boxes)   # native values of policy-aligned boxes (N, 2, D)
 actions = policy.decode(values)     # normalized actions
-```
-
-## Tests
-
-```bash
-python -m pytest
 ```
