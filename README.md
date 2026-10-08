@@ -21,6 +21,8 @@ module checked against the prototype on the ACC benchmark.
 | Intersample tube certification (Tube part of SafeStep) | `reacheco/tubes.py` | ported |
 | ReachStep: forward step with per-cell merging, fixed-point test | `reacheco/reach.py` | ported |
 | Forward verification without repair | `reacheco/verify.py` | ported |
+| Losing set `L` (certified losing boxes per policy cell) | `reacheco/losing.py` | ported |
+| FindCont: continuation games, repair constraints, backends (alphabet, Car2D steering corrections, constant and Docking2D backups) | `reacheco/continuation.py` | ported |
 
 ## Deviations from the prototype
 
@@ -46,6 +48,26 @@ Behaviour that intentionally differs from the research prototype:
   prototype returned them unchanged); the goal is cut off before propagation.
 - The intersample tube schedule is part of the problem file
   (`tube_segments`), not a global setting.
+- Losing-set cell boxes come from the policy thresholds (the prototype assumed
+  a uniform grid, which is wrong for Docking2D's Gaussian thresholds; ACC is
+  unchanged). An upper outer cell lying entirely beyond the grid bound has no
+  cell box and is never certified as a whole.
+- The losing set tabulates only occupied cells on the device (the prototype
+  allocated per-cell tables over the whole grid, about 11 GB for Docking2D).
+- When certifying a whole policy cell as losing, each successor piece is
+  checked against `L` in its own cell. The prototype paired the pieces after
+  the goal cut with the cells from before it, which the cut can reorder (no
+  effect on the recorded cases).
+- The Car2D continuation backend (`LocalAlphabet`) proposes corrections of the
+  network's own value of each cell, the same at every game depth. The
+  prototype corrected the current, possibly already repaired, value and added
+  values other constraints allowed on the cell ("seeds"); its proposals moved
+  with every repair, so it could not learn `L`. With fixed proposals per cell
+  it learns `L` and certifies whole cells like the alphabet, and games of
+  different obligations offer the same values on a cell without seeds.
+- Every backend certifies whole losing cells, with the values it offers on the
+  cell. The prototype did this only for alphabets; for backups (ACC full
+  braking, Docking2D approach) it stored only the losing boxes themselves.
 
 ## Known limitations
 
@@ -62,8 +84,10 @@ reacheco/               the library
 checkpoints/            original DWC controllers (acc, docking2d, car2d)
 checkpoints_repaired/   repaired controllers of the paper's runs, each with the merge
                         mask(s) of its certifying pass and source.json (provenance)
+backends/               continuation backends of the paper's runs (FindCont's W)
 problems/               verification problems: ACC (X0 cut at p <= 10, 20, 30, 100),
-                        Docking2D (X0 and its four velocity quadrants), Car2D (box B)
+                        Docking2D (X0 and its four velocity quadrants), Car2D (box B); problems/acc/sets/
+                        also holds the paper's initial losing set
 ```
 
 Tests, golden data and the conversion tools live outside this repository in
