@@ -92,6 +92,7 @@ def cut_goal(boxes, goals, eligible):
 
 def _cut_one(boxes, goal, eligible):
     """Cut eligible boxes at one goal box: ``(pieces, parents, slabs, reached)``."""
+    # eligible is used to keep unsafe transitions, so they are noticed.
     reached = eligible & (boxes[:, 0] <= goal[1]).all(-1) & (boxes[:, 1] >= goal[0]).all(-1)
     ids = torch.arange(len(boxes), device=boxes.device)
     chunks, owners, slabs = [boxes[~eligible]], [ids[~eligible]], [torch.zeros_like(ids[~eligible])]
@@ -109,7 +110,10 @@ def _cut_one(boxes, goal, eligible):
                 remainder[:, 0, d] = torch.maximum(remainder[:, 0, d], boundary)
             chunks.append(piece)
             owners.append(ids[outside])
+            # slab label, so that merging is handled correctly 
+            # (merging could reintroduce the goal region)
             slabs.append(torch.full_like(ids[outside], 1 + 2 * d + int(upper)))
+            # should not happen as we test for goal inclusion on top
             valid = (remainder[:, 0] <= remainder[:, 1]).all(-1)
             remainder, ids = remainder[valid], ids[valid]
     return torch.cat(chunks), torch.cat(owners), torch.cat(slabs), reached

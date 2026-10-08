@@ -210,8 +210,8 @@ class ACCSpec(SafetySpec):
 
     @classmethod
     def from_dict(cls, data, system, initial_boxes, goal_boxes):
-        return cls(int(data["horizon"]), initial_boxes, goal_boxes, data.get("unsafe", "collision"),
-                   system.config.max_braking_acceleration)
+        return cls(**cls.common_fields(data, initial_boxes, goal_boxes), unsafe=data.get("unsafe", "collision"),
+                   braking_acceleration=system.config.max_braking_acceleration)
 
     def _unsafe_corner(self, corner):
         if self.unsafe == "collision":

@@ -23,16 +23,24 @@ class SafetySpec(ABC):
     A trajectory that enters the goal with a safe incoming transition has
     completed the task and is not followed further. An empty goal set means
     pure bounded safety.
+
+    With ``detect_fixed_point`` verification stops at an inductive fixed point
+    ``X_{k+1} ⊆ X_k``, which certifies safety for all time. Leave it off for
+    reach-avoid tasks, where every trajectory has to reach the goal within the
+    horizon.
     """
 
     horizon: int
     initial_boxes: torch.Tensor
     goal_boxes: torch.Tensor
+    detect_fixed_point: bool = False
     state_dim: ClassVar[int]
 
     def __post_init__(self):
         if isinstance(self.horizon, bool) or not isinstance(self.horizon, int) or self.horizon < 0:
             raise ValueError("horizon must be a nonnegative integer number of control steps")
+        if not isinstance(self.detect_fixed_point, bool):
+            raise ValueError("detect_fixed_point must be a boolean")
         for name, finite in (("initial_boxes", True), ("goal_boxes", False)):
             boxes = torch.as_tensor(getattr(self, name), dtype=torch.float64).reshape(-1, 2, self.state_dim)
             if bool(torch.isnan(boxes).any()) or bool((boxes[:, 0] > boxes[:, 1]).any()):
@@ -52,7 +60,13 @@ class SafetySpec(ABC):
     @classmethod
     def from_dict(cls, data, system, initial_boxes, goal_boxes):
         """Build the specification from its problem-file entries."""
-        return cls(int(data["horizon"]), initial_boxes, goal_boxes)
+        return cls(**cls.common_fields(data, initial_boxes, goal_boxes))
+
+    @staticmethod
+    def common_fields(data, initial_boxes, goal_boxes):
+        """Problem-file entries shared by every specification."""
+        return {"horizon": int(data["horizon"]), "initial_boxes": initial_boxes, "goal_boxes": goal_boxes,
+                "detect_fixed_point": bool(data.get("detect_fixed_point", False))}
 
 
 @dataclass(frozen=True, eq=False)
@@ -68,7 +82,7 @@ def load_problem(path):
     Format::
 
         {"environment": "acc", "options": {<system config>},
-         "horizon": 200,
+         "horizon": 200, "detect_fixed_point": true,
          "initial_set": {"file": "sets/x0.json", "clip": {"dimension": 0, "upper": 10.0}},
          "goal_set": {"file": "sets/goal.json"},
          <environment-specific specification entries>}

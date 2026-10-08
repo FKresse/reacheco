@@ -17,6 +17,32 @@ module checked against the prototype on the ACC benchmark.
 | Safety specifications, problem files | `reacheco/spec.py` | ported |
 | ACC: interval propagators, training and evaluation rollouts | `reacheco/environments/acc.py` | ported |
 | Intersample tube certification (Tube part of SafeStep) | `reacheco/tubes.py` | ported |
+| ReachStep: forward step with per-cell merging, fixed-point test | `reacheco/reach.py` | ported |
+| Forward verification without repair | `reacheco/verify.py` | ported |
+
+## Deviations from the prototype
+
+Behaviour that intentionally differs from the research prototype:
+
+- DWC repair values may also lie below 0, so that the repair alphabet reaches
+  both action clips (`DWCPolicy.min_value`).
+- Boxes with NaN or inverted bounds are rejected instead of silently dropped.
+- The ACC braking-invariant specification takes its braking acceleration from
+  the system configuration.
+- `ACC.step` reports only `crash` and `too_far` in `info`.
+- `--no-merge` keeps every successor piece as its own row directly, instead of
+  marking every policy cell merge-disabled; the forward pass is identical.
+- Forward-step records list every policy cell whose action was read
+  (`touched_cells`), including cells read by the merge lookahead.
+- Merging on grid dimensions with a single cell (used only by the UUV case
+  study) is not supported.
+
+## Known limitations
+
+- **No outward rounding.** `Post` and `Tube` bounds are computed in float32
+  without rounding outward, so a bound can be off by about one float32 step
+  (up to 5e-7 observed for ACC). The paper also leaves floating-point errors
+  out of scope. To be fixed later, e.g. by `nextafter` on the computed bounds.
 
 ## Layout
 
