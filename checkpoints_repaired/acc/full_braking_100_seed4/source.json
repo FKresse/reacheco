@@ -1,0 +1,37 @@
+{
+  "controller": "/nfs/scistore16/tomgrp/fkresse/difflogic/release_closed_loop/experiment_results/acc_quality_no_stale_drop_20260917/dwc_b81/full_braking/initial_100/seed4/repaired_policy.pt",
+  "prototype_commit_at_conversion": "9fb2fbef4650058920c1511eecfbd307b403ba78",
+  "original_checkpoint": "checkpoints/acc/dwc_b81_seed4.pt",
+  "problems": [
+    "problems/acc/boundary160_collision_100.json"
+  ],
+  "runs": {
+    "/nfs/scistore16/tomgrp/fkresse/difflogic/release_closed_loop/experiment_results/acc_quality_no_stale_drop_20260917/dwc_b81/full_braking/initial_100/seed4": {
+      "verification_status": "SAFE",
+      "repairs": 29,
+      "changed_policy_cells": 371,
+      "merge_disabled_cells": 641,
+      "fixed_point_step": 69,
+      "goal_reached": false,
+      "runtime_seconds": 19.85284064291045,
+      "configuration": {
+        "actor": "DWCPolicy",
+        "constraints_input": null,
+        "continuation_backend": "config/acc/full_braking.json",
+        "device": "cuda",
+        "environment": "acc-variant-v1",
+        "initial_losing_set": null,
+        "intersample_tube_escalation": [
+          100
+        ],
+        "joint_synthesis": "rebuild",
+        "learn_losing_set": true,
+        "merge_protection": "cone",
+        "prefix_mode": "unconditional",
+        "restart_mode": "earliest",
+        "spec": "config/acc/acc_boundary160_unsafe_100.json",
+        "timesteps": 200
+      }
+    }
+  }
+}

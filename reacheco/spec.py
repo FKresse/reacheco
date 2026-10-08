@@ -71,9 +71,16 @@ class SafetySpec(ABC):
 
 @dataclass(frozen=True, eq=False)
 class Problem:
+    """A system with its specification.
+
+    ``tube_segments``: the segment counts with which intersample tubes that
+    fail as one segment are re-enclosed in turn (see ``tubes.tube_safe``).
+    """
+
     system: object # defined in enviroments/
     spec: SafetySpec
     path: Path | None = None
+    tube_segments: tuple = (10, 100)
 
 
 def load_problem(path):
@@ -82,14 +89,15 @@ def load_problem(path):
     Format::
 
         {"environment": "acc", "options": {<system config>},
-         "horizon": 200, "detect_fixed_point": true,
+         "horizon": 200, "detect_fixed_point": true, "tube_segments": [10, 100],
          "initial_set": {"file": "sets/x0.json", "clip": {"dimension": 0, "upper": 10.0}},
-         "goal_set": {"file": "sets/goal.json"},
+         "goal_set": {"boxes": [[lower, upper], ...]},
          <environment-specific specification entries>}
 
-    Box files contain ``{"boxes": [[lower, upper], ...]}``; paths are relative
-    to the problem file. ``clip`` keeps the part of the set within
-    ``[lower, upper]`` along one dimension.
+    A set is given inline (``boxes``) or as a box file containing
+    ``{"boxes": [[lower, upper], ...]}``, relative to the problem file.
+    ``clip`` keeps the part of the set within ``[lower, upper]`` along one
+    dimension.
     """
     from reacheco.environments import ENVIRONMENTS
 
@@ -100,14 +108,15 @@ def load_problem(path):
     # both inital and goal are represented by boxes.
     initial = _load_boxes(data["initial_set"], path.parent, spec_class.state_dim)
     goal = _load_boxes(data.get("goal_set"), path.parent, spec_class.state_dim)
-    return Problem(system, spec_class.from_dict(data, system, initial, goal), path)
+    return Problem(system, spec_class.from_dict(data, system, initial, goal), path,
+                   tuple(int(n) for n in data.get("tube_segments", (10, 100))))
 
 
 def _load_boxes(entry, directory, dimension):
     if entry is None:
         return torch.empty((0, 2, dimension), dtype=torch.float64)
-    boxes = torch.tensor(json.loads((directory / entry["file"]).read_text())["boxes"],
-                         dtype=torch.float64).reshape(-1, 2, dimension)
+    boxes = entry["boxes"] if "boxes" in entry else json.loads((directory / entry["file"]).read_text())["boxes"]
+    boxes = torch.tensor(boxes, dtype=torch.float64).reshape(-1, 2, dimension)
     clip = entry.get("clip")
     if clip is not None:
         d = clip["dimension"]

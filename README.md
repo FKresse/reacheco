@@ -16,6 +16,8 @@ module checked against the prototype on the ACC benchmark.
 | Box splitting along the policy grid, goal cutting | `reacheco/boxes.py` | ported |
 | Safety specifications, problem files | `reacheco/spec.py` | ported |
 | ACC: interval propagators, training and evaluation rollouts | `reacheco/environments/acc.py` | ported |
+| Docking2D: CWH propagators (rollouts: SafeRL, not included) | `reacheco/environments/docking2d.py` | ported |
+| Car2D: exact-flow propagators, course rollouts | `reacheco/environments/car2d.py` | ported |
 | Intersample tube certification (Tube part of SafeStep) | `reacheco/tubes.py` | ported |
 | ReachStep: forward step with per-cell merging, fixed-point test | `reacheco/reach.py` | ported |
 | Forward verification without repair | `reacheco/verify.py` | ported |
@@ -36,20 +38,32 @@ Behaviour that intentionally differs from the research prototype:
   (`touched_cells`), including cells read by the merge lookahead.
 - Merging on grid dimensions with a single cell (used only by the UUV case
   study) is not supported.
+- The DWC decoder computes `exp(log_alpha)` on the CPU, so actions do not
+  depend on the device. The prototype computed it on the device; on CUDA this
+  differs by one float32 step for some controllers (e.g. Docking2D seed 1,
+  Car2D, ACC b81 seed 3).
+- Docking2D propagators do not treat boxes inside the goal specially (the
+  prototype returned them unchanged); the goal is cut off before propagation.
+- The intersample tube schedule is part of the problem file
+  (`tube_segments`), not a global setting.
 
 ## Known limitations
 
-- **No outward rounding.** `Post` and `Tube` bounds are computed in float32
-  without rounding outward, so a bound can be off by about one float32 step
-  (up to 5e-7 observed for ACC). The paper also leaves floating-point errors
-  out of scope. To be fixed later, e.g. by `nextafter` on the computed bounds.
+- **No outward rounding for ACC and Car2D.** Their `Post` and `Tube` bounds
+  are computed in float32 without rounding outward, so a bound can be off by
+  about one float32 step (up to 5e-7 observed for ACC). Docking2D computes in
+  float64 and rounds outward. The paper leaves floating-point errors out of
+  scope. To be fixed later, e.g. by `nextafter` on the computed bounds.
 
 ## Layout
 
 ```
-reacheco/        the library
-checkpoints/acc/ ACC DWC controllers: dwc_b81_seed{1..5} (paper), dwc_b159 (regression)
-problems/acc/    verification problems of the paper (X0 cut at p <= 10, 20, 30, 100)
+reacheco/               the library
+checkpoints/            original DWC controllers (acc, docking2d, car2d)
+checkpoints_repaired/   repaired controllers of the paper's runs, each with the merge
+                        mask(s) of its certifying pass and source.json (provenance)
+problems/               verification problems: ACC (X0 cut at p <= 10, 20, 30, 100),
+                        Docking2D (X0 and its four velocity quadrants), Car2D (box B)
 ```
 
 Tests, golden data and the conversion tools live outside this repository in

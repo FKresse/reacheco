@@ -1,0 +1,46 @@
+{
+  "environment": "docking2d",
+  "horizon": 1500,
+  "detect_fixed_point": false,
+  "tube_segments": [
+    10,
+    100
+  ],
+  "initial_set": {
+    "boxes": [
+      [
+        [
+          70.0,
+          70.0,
+          0.0,
+          -0.28
+        ],
+        [
+          120.0,
+          120.0,
+          0.28,
+          0.0
+        ]
+      ]
+    ]
+  },
+  "goal_set": {
+    "boxes": [
+      [
+        [
+          -0.35,
+          -0.35,
+          -1e+30,
+          -1e+30
+        ],
+        [
+          0.35,
+          0.35,
+          1e+30,
+          1e+30
+        ]
+      ]
+    ]
+  },
+  "speed_offset": 0.2
+}

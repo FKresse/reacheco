@@ -1,0 +1,121 @@
+{
+  "controller": "/nfs/scistore16/tomgrp/fkresse/difflogic/release_closed_loop/experiment_results/docking2d_far130lut6_seed3_box70_120_approach_20260916_161942/pass_02/box_0_0_1_1/repaired_policy.pt",
+  "prototype_commit_at_conversion": "9fb2fbef4650058920c1511eecfbd307b403ba78",
+  "original_checkpoint": "checkpoints/docking2d/far130_lut6_seed3.pt",
+  "problems": [
+    "problems/docking2d/box70_120_vx0_vy0.json",
+    "problems/docking2d/box70_120_vx0_vy1.json",
+    "problems/docking2d/box70_120_vx1_vy0.json",
+    "problems/docking2d/box70_120_vx1_vy1.json"
+  ],
+  "runs": {
+    "/nfs/scistore16/tomgrp/fkresse/difflogic/release_closed_loop/experiment_results/docking2d_far130lut6_seed3_box70_120_approach_20260916_161942/pass_02/box_0_0_0_0": {
+      "verification_status": "SAFE",
+      "repairs": 503,
+      "changed_policy_cells": 0,
+      "merge_disabled_cells": 4188,
+      "fixed_point_step": null,
+      "goal_reached": true,
+      "runtime_seconds": 2534.1735085048713,
+      "configuration": {
+        "actor": "DWCPolicy",
+        "constraints_input": "/nfs/scistore16/tomgrp/fkresse/difflogic/release_closed_loop/experiment_results/docking2d_far130lut6_seed3_box70_120_approach_20260916_161942/pass_01/box_0_0_1_1/repair_constraints.pt",
+        "continuation_backend": "/nfs/scistore16/tomgrp/fkresse/difflogic/release_closed_loop/experiment_results/docking2d_far130lut6_seed3_box70_120_approach_20260916_161942/continuation.json",
+        "device": "cuda",
+        "environment": "docking2d-v0",
+        "initial_losing_set": null,
+        "intersample_tube_escalation": [
+          100
+        ],
+        "joint_synthesis": "rebuild",
+        "learn_losing_set": false,
+        "merge_protection": "cone",
+        "prefix_mode": "unconditional",
+        "restart_mode": "greedy",
+        "spec": "/nfs/scistore16/tomgrp/fkresse/difflogic/release_closed_loop/experiment_results/docking2d_far130lut6_seed3_box70_120_approach_20260916_161942/pass_02/box_0_0_0_0/problem.json",
+        "timesteps": 1500
+      }
+    },
+    "/nfs/scistore16/tomgrp/fkresse/difflogic/release_closed_loop/experiment_results/docking2d_far130lut6_seed3_box70_120_approach_20260916_161942/pass_02/box_0_0_0_1": {
+      "verification_status": "SAFE",
+      "repairs": 464,
+      "changed_policy_cells": 0,
+      "merge_disabled_cells": 4168,
+      "fixed_point_step": null,
+      "goal_reached": true,
+      "runtime_seconds": 2109.5691514331847,
+      "configuration": {
+        "actor": "DWCPolicy",
+        "constraints_input": "/nfs/scistore16/tomgrp/fkresse/difflogic/release_closed_loop/experiment_results/docking2d_far130lut6_seed3_box70_120_approach_20260916_161942/pass_02/box_0_0_0_0/repair_constraints.pt",
+        "continuation_backend": "/nfs/scistore16/tomgrp/fkresse/difflogic/release_closed_loop/experiment_results/docking2d_far130lut6_seed3_box70_120_approach_20260916_161942/continuation.json",
+        "device": "cuda",
+        "environment": "docking2d-v0",
+        "initial_losing_set": null,
+        "intersample_tube_escalation": [
+          100
+        ],
+        "joint_synthesis": "rebuild",
+        "learn_losing_set": false,
+        "merge_protection": "cone",
+        "prefix_mode": "unconditional",
+        "restart_mode": "greedy",
+        "spec": "/nfs/scistore16/tomgrp/fkresse/difflogic/release_closed_loop/experiment_results/docking2d_far130lut6_seed3_box70_120_approach_20260916_161942/pass_02/box_0_0_0_1/problem.json",
+        "timesteps": 1500
+      }
+    },
+    "/nfs/scistore16/tomgrp/fkresse/difflogic/release_closed_loop/experiment_results/docking2d_far130lut6_seed3_box70_120_approach_20260916_161942/pass_02/box_0_0_1_0": {
+      "verification_status": "SAFE",
+      "repairs": 523,
+      "changed_policy_cells": 0,
+      "merge_disabled_cells": 4204,
+      "fixed_point_step": null,
+      "goal_reached": true,
+      "runtime_seconds": 2870.474928949494,
+      "configuration": {
+        "actor": "DWCPolicy",
+        "constraints_input": "/nfs/scistore16/tomgrp/fkresse/difflogic/release_closed_loop/experiment_results/docking2d_far130lut6_seed3_box70_120_approach_20260916_161942/pass_02/box_0_0_0_1/repair_constraints.pt",
+        "continuation_backend": "/nfs/scistore16/tomgrp/fkresse/difflogic/release_closed_loop/experiment_results/docking2d_far130lut6_seed3_box70_120_approach_20260916_161942/continuation.json",
+        "device": "cuda",
+        "environment": "docking2d-v0",
+        "initial_losing_set": null,
+        "intersample_tube_escalation": [
+          100
+        ],
+        "joint_synthesis": "rebuild",
+        "learn_losing_set": false,
+        "merge_protection": "cone",
+        "prefix_mode": "unconditional",
+        "restart_mode": "greedy",
+        "spec": "/nfs/scistore16/tomgrp/fkresse/difflogic/release_closed_loop/experiment_results/docking2d_far130lut6_seed3_box70_120_approach_20260916_161942/pass_02/box_0_0_1_0/problem.json",
+        "timesteps": 1500
+      }
+    },
+    "/nfs/scistore16/tomgrp/fkresse/difflogic/release_closed_loop/experiment_results/docking2d_far130lut6_seed3_box70_120_approach_20260916_161942/pass_02/box_0_0_1_1": {
+      "verification_status": "SAFE",
+      "repairs": 501,
+      "changed_policy_cells": 0,
+      "merge_disabled_cells": 4148,
+      "fixed_point_step": null,
+      "goal_reached": true,
+      "runtime_seconds": 2635.6488478244282,
+      "configuration": {
+        "actor": "DWCPolicy",
+        "constraints_input": "/nfs/scistore16/tomgrp/fkresse/difflogic/release_closed_loop/experiment_results/docking2d_far130lut6_seed3_box70_120_approach_20260916_161942/pass_02/box_0_0_1_0/repair_constraints.pt",
+        "continuation_backend": "/nfs/scistore16/tomgrp/fkresse/difflogic/release_closed_loop/experiment_results/docking2d_far130lut6_seed3_box70_120_approach_20260916_161942/continuation.json",
+        "device": "cuda",
+        "environment": "docking2d-v0",
+        "initial_losing_set": null,
+        "intersample_tube_escalation": [
+          100
+        ],
+        "joint_synthesis": "rebuild",
+        "learn_losing_set": false,
+        "merge_protection": "cone",
+        "prefix_mode": "unconditional",
+        "restart_mode": "greedy",
+        "spec": "/nfs/scistore16/tomgrp/fkresse/difflogic/release_closed_loop/experiment_results/docking2d_far130lut6_seed3_box70_120_approach_20260916_161942/pass_02/box_0_0_1_1/problem.json",
+        "timesteps": 1500
+      }
+    }
+  }
+}

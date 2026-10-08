@@ -2,6 +2,10 @@
   "environment": "acc",
   "horizon": 200,
   "detect_fixed_point": true,
+  "tube_segments": [
+    10,
+    100
+  ],
   "initial_set": {
     "file": "sets/initial_boundary_160.json",
     "clip": {

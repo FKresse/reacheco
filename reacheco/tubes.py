@@ -9,19 +9,18 @@ import torch
 
 
 @torch.no_grad()
-def tube_safe(problem, boxes, actions, *, segments=10, escalation=(100,),
-              box_budget=250_000, batch_size=32_768):
+def tube_safe(problem, boxes, actions, *, segments=None, box_budget=250_000, batch_size=32_768):
     """Per box ``(N, 2, D)`` and held action ``(N, action_dim)``: does ``Tube(B, a)`` avoid ``U``?
 
     The whole control period is checked as one segment first. Boxes that fail
-    are re-enclosed with ``segments`` segments, and boxes failing again with
-    each finer level of ``escalation``; every level only processes the boxes
-    the previous one rejected. Before escalating, boxes that are unsafe
+    are re-enclosed with each segment count of ``segments`` in turn (default:
+    the problem's ``tube_segments``); every level only processes the boxes the
+    previous one rejected. Before the second level, boxes that are unsafe
     themselves or whose ``Post`` is unsafe are given up: their tube meets ``U``
     at every segmentation. At most ``box_budget`` tube segments and
     ``batch_size`` boxes are enclosed at a time.
     """
-    levels = [int(level) for level in (segments, *escalation) if int(level) > 1]
+    levels = [int(level) for level in (problem.tube_segments if segments is None else segments) if int(level) > 1]
     if any(later <= earlier for earlier, later in zip(levels, levels[1:])):
         raise ValueError("segment counts must increase")
     safe = torch.empty(len(boxes), dtype=torch.bool, device=boxes.device)
