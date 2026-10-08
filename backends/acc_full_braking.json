@@ -1,0 +1,5 @@
+{
+  "type": "constant-backup",
+  "endpoint": "max",
+  "expect": 1.0
+}
