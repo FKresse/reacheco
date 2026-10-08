@@ -307,10 +307,12 @@ def find_continuations(obligations, backend, problem, policy, losing_set, *, lea
 
     ``losing_set`` grows in place when ``learn``; the games of longer
     horizons already see the growth of shorter ones.
-    
+
     In Algorithm 2 of the paper, we update L outside the continuation search
     here we do it inside such that later calls can already benefit from expanded
-    losing set knowledge.
+    losing set knowledge. The returned ``losing_delta`` holds the pieces that
+    actually enlarged ``L`` in this call; the caller needs it for
+    EarliestAffected, not to add it again.
     """
     if any(o.horizon < 1 for o in obligations):
         raise ValueError("every obligation needs a positive horizon")
