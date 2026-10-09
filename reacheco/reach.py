@@ -57,47 +57,33 @@ class StepRecord:
     All tensors live on the CPU.
 
     Source boxes, the policy-aligned parts of ``X_k`` (``M`` rows):
-        ``source_boxes`` ``(M, 2, D)``, ``source_parents`` (row of ``X_k``),
-        ``source_cells``, ``source_values`` (native values applied) and
-        ``source_tube_safe``.
+        ``source_parents`` (row of ``X_k``) and ``source_cells``.
     Pieces of the post-images (``P`` rows): ``piece_sources`` (the source box
         producing the piece) and ``piece_rows`` (the row of ``X_{k+1}``
         containing it).
-    Rows of ``X_{k+1}`` (``R`` rows): ``cells``; ``tube_unsafe`` when some
-        incoming tube is not certified; ``failing``, the rows violating
-        SafeStep (``tube_unsafe`` or the row meeting ``L``), i.e. the failing
-        boxes ``F`` of Algorithm 1; ``row_sources``, the source box of a row
+    Rows of ``X_{k+1}`` (``R`` rows): ``cells``; ``failing``, the rows
+        violating SafeStep (an incoming tube not certified or the row meeting
+        ``L``), i.e. the failing boxes ``F`` of Algorithm 1; ``row_sources``, the source box of a row
         made of a single piece and ``-1`` for a merged row.
-    ``merged_pieces`` and ``merged_piece_rows``: the pieces of merged rows,
-        used to certify tubes piecewise in the next step.
     ``touched_cells``: every policy cell whose action the step read.
     """
 
-    source_boxes: torch.Tensor
     source_parents: torch.Tensor
     source_cells: torch.Tensor
-    source_values: torch.Tensor
-    source_tube_safe: torch.Tensor
     piece_sources: torch.Tensor
     piece_rows: torch.Tensor
     cells: torch.Tensor
-    tube_unsafe: torch.Tensor
     failing: torch.Tensor
     row_sources: torch.Tensor
-    merged_pieces: torch.Tensor # originial pieces before merging
-    merged_piece_rows: torch.Tensor # which merged box/row now contains that piece
     touched_cells: torch.Tensor
 
 
 @torch.no_grad()
-def reach_step(boxes, policy, problem, meets_losing, *, merge=True, merge_disabled=(), previous=None,
-               lookahead=True):
+def reach_step(boxes, policy, problem, meets_losing, *, merge=True, merge_disabled=(), lookahead=True):
     """Propagate ``X_k`` (``boxes``) one step; returns ``X_{k+1}`` and its ``StepRecord``.
 
     ``meets_losing(boxes, cells)`` tells which policy-aligned boxes intersect
-    ``L``. ``merge=False`` keeps every piece as its own row. ``previous`` is the
-    record that produced ``boxes``; with it, a source box inside a merged row
-    whose tube fails is certified piece by piece instead.
+    ``L``. ``merge=False`` keeps every piece as its own row.
     """
     spec = problem.spec
     goals = spec.goal_boxes.to(boxes)
@@ -108,12 +94,8 @@ def reach_step(boxes, policy, problem, meets_losing, *, merge=True, merge_disabl
     # compute actions for non-goal boxes
     values = policy.cell_values(source_cells)
     actions = policy.decode(values)
-    # check the tubes of the merged boxes
+    # Failing tubes are flagged at the end of the step (``failing``).
     tube_ok = tube_safe(problem, source_boxes, actions)
-    # for failing tubes, check their unmerged pieces, if safe piecewise tube we can continue
-    # failing post images are flagged at the end of the step (``failing``).
-    # TODO! ablate if this actually helps on the benchmarks
-    tube_ok = _certify_tubes_piecewise(problem, source_boxes, source_parents, actions, tube_ok, previous)
     # One chunk: the goal is cut over all pieces at once, which fixes the row order.
     # slabs (integer index tensor) decide if boxes are merge eligible. 
     # This is necessary (instead of only a simple check of q in Q)
@@ -169,16 +151,13 @@ def reach_step(boxes, policy, problem, meets_losing, *, merge=True, merge_disabl
     row_sources = torch.where(counts == 1, piece_sources[first_piece.clamp(min=0)], -1)
     unsafe_tubes = torch.zeros(len(cells), dtype=torch.long, device=pieces.device)
     unsafe_tubes.index_add_(0, rows, (~tube_ok[piece_sources]).long())
-    merged = counts[rows] > 1
     # A merged row meets L exactly when one of its pieces does (merge-induced
     # hits were split above), so checking rows is checking every Post piece.
     failing = (unsafe_tubes > 0) | meets_losing(frontier, cells)
     record = StepRecord(
-        source_boxes=source_boxes.cpu(), source_parents=source_parents.cpu(),
-        source_cells=source_cells.cpu(), source_values=values.cpu(), source_tube_safe=tube_ok.cpu(),
+        source_parents=source_parents.cpu(), source_cells=source_cells.cpu(),
         piece_sources=piece_sources.cpu(), piece_rows=rows.cpu(), cells=cells.cpu(),
-        tube_unsafe=(unsafe_tubes > 0).cpu(), failing=failing.cpu(), row_sources=row_sources.cpu(),
-        merged_pieces=pieces[merged].cpu(), merged_piece_rows=rows[merged].cpu(),
+        failing=failing.cpu(), row_sources=row_sources.cpu(),
         touched_cells=torch.unique(torch.cat(touched)).cpu(),
     )
     return frontier, record
@@ -231,52 +210,6 @@ def _transition_fails(problem, policy, boxes, cells, meets_losing):
         failed[parents[meets_losing(pieces, piece_cells)]] = True
         fails.append(failed)
     return torch.cat(fails) if fails else torch.zeros(0, dtype=torch.bool, device=boxes.device)
-
-
-def _certify_tubes_piecewise(problem, boxes, parents, actions, tube_ok, previous):
-    """Re-certify failed tubes of source boxes inside merged rows on the rows' pieces.
-
-    Trajectories start inside the pieces, not anywhere in their hull, so a
-    source box is safe when the tube of its intersection with every piece is.
-    """
-    if previous is None or not len(previous.merged_pieces):
-        return tube_ok
-    failing = torch.where(~tube_ok)[0]
-    if not len(failing):
-        return tube_ok
-    device = boxes.device
-    # orignial pieces before merging
-    pieces = previous.merged_pieces.to(device=device, dtype=boxes.dtype)
-    # id in the merged sucessor boxes/row of the previous step
-    piece_rows = previous.merged_piece_rows.to(device)
-    failing_rows = parents[failing]
-    selected = torch.isin(piece_rows, failing_rows)
-    if not bool(selected.any()):
-        return tube_ok
-    pieces, owners = pieces[selected], piece_rows[selected]
-    # Pair every piece with each failing source box of its row.
-    order = torch.argsort(failing_rows)
-    sorted_rows = failing_rows[order]
-    starts = torch.searchsorted(sorted_rows, owners, right=False)
-    counts = torch.searchsorted(sorted_rows, owners, right=True) - starts
-    piece_ids = torch.repeat_interleave(torch.arange(len(pieces), device=device), counts)
-    offsets = torch.arange(int(counts.sum()), device=device) - torch.repeat_interleave(counts.cumsum(0) - counts,
-                                                                                         counts)
-    sources = failing[order[starts[piece_ids] + offsets]]
-    # the maximum/minimum is necessary due to goal removal, boundary faces also considered
-    # we clip to the boundary of the pices and the merged source (due to goal removal)
-    clipped = torch.stack((torch.maximum(pieces[piece_ids, 0], boxes[sources, 0]),
-                           torch.minimum(pieces[piece_ids, 1], boxes[sources, 1])), 1)
-    valid = (clipped[:, 0] <= clipped[:, 1]).all(1)
-    clipped, sources = clipped[valid], sources[valid]
-    if not len(clipped):
-        return tube_ok
-    safe = tube_safe(problem, clipped, actions[sources])
-    total = torch.zeros(len(tube_ok), dtype=torch.long, device=device)
-    certified = torch.zeros_like(total)
-    total.index_add_(0, sources, torch.ones_like(sources))
-    certified.index_add_(0, sources, safe.long())
-    return tube_ok | ((total > 0) & (certified == total))
 
 
 def detect_fixed_point(previous_boxes, previous_cells, boxes, cells):
