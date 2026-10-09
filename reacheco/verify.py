@@ -27,21 +27,28 @@ class Verification:
     failing: torch.Tensor | None = field(default=None, repr=False)
 
 
-def verify(problem, policy, meets_losing=None, *, merge=True, merge_disabled=(), merge_disabled_at=None):
+def verify(problem, policy, meets_losing=None, *, merge=True, merge_disabled=(), merge_disabled_at=None,
+           frontiers=None, records=None):
     """Propagate ``X0`` until a failure, the goal, the horizon or (if the
     specification asks for it) an inductive fixed point.
 
     ``meets_losing(boxes, cells)`` defaults to the unsafe set ``U``.
     ``merge_disabled`` cells are never merged; ``merge_disabled_at[t]`` adds
-    cells for the step producing ``X_t``.
+    cells for the step producing ``X_t``. Given the ``frontiers`` ``X_0 .. X_k``
+    and ``records`` of an earlier pass that are still valid, the pass resumes
+    at ``X_k``.
     """
     if meets_losing is None:
         def meets_losing(boxes, cells):
             return problem.spec.intersects_unsafe(boxes)
     merge_disabled_at = merge_disabled_at or {}
-    boxes = problem.spec.initial_boxes.to(device=policy.device, dtype=torch.float32)
-    frontiers, records = [boxes.cpu()], []
-    for step in range(1, problem.spec.horizon + 1):
+    if frontiers is None:
+        frontiers, records = [problem.spec.initial_boxes.to(torch.float32).cpu()], []
+    frontiers, records = list(frontiers), list(records)
+    if len(frontiers) != len(records) + 1:
+        raise ValueError("a pass resumes from frontiers X_0 .. X_k and the k records between them")
+    boxes = frontiers[-1].to(policy.device)
+    for step in range(len(records) + 1, problem.spec.horizon + 1):
         if not len(boxes):
             # Every trajectory has entered the goal with a safe transition.
             return Verification(True, math.inf, frontiers, records)

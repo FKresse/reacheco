@@ -149,6 +149,13 @@ class DWCPolicy:
                 self.overrides[key] = value
         self._override_table = None
 
+    def copy(self):
+        """An independent copy of the overrides; the network and its value cache are shared."""
+        result = copy.copy(self)
+        result.overrides = dict(self.overrides)
+        result._override_table = None
+        return result
+
     def changed_cells(self, other):
         """Cells on which this policy and ``other`` select different native values."""
         keys = sorted(set(self.overrides) | set(other.overrides))

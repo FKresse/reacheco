@@ -235,6 +235,8 @@ def cell_centre_backup(policy, command):
 
     def centres(boxes):
         middle = 0.5 * (boxes[:, 0] + boxes[:, 1])
+        # importantly it needs to be over the cell not over the obligations
+        # box, otherwise we get (potentially) unresolvable conflicts.
         cells = policy.cell_ids(middle)
         result = middle.clone()
         for d, row in enumerate(policy.thresholds):
