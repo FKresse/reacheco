@@ -17,52 +17,19 @@ games and forward verification share one transition semantics.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from time import perf_counter
 
 import torch
 
 from reacheco.boxes import cell_pieces, cut_goal, inside_any
+from reacheco.constraints import RepairConstraint
 from reacheco.reach import successors
 from reacheco.tubes import tube_safe
 
 BRANCH_BATCH = 4096
 PIECE_BUDGET = 16384
-
-
-# ------------------------------------------------------------ obligations
-
-@dataclass(frozen=True, order=True)
-class BoxRef:
-    """A box of the frontier ``X_time`` (``index`` may exceed the stored rows for replayed boxes)."""
-
-    time: int
-    index: int
-
-
-@dataclass(frozen=True)
-class Obligation:
-    """``(B, h)``: find a continuation from ``box`` that is safe until ``failure_time``.
-
-    ``covers`` names the failures (or joint conflicts) the obligation answers
-    for; with ``root`` and ``failure_time`` it identifies the obligation.
-    ``cell`` is the policy cell of ``box``, or ``-1`` if it is not known yet.
-    """
-
-    root: BoxRef
-    failure_time: int
-    covers: frozenset
-    box: torch.Tensor = field(compare=False, repr=False)
-    cell: int = field(default=-1, compare=False)
-
-    @property
-    def time(self):
-        return self.root.time
-
-    @property
-    def horizon(self):
-        return self.failure_time - self.root.time
 
 
 # ------------------------------------------------------------- game DAGs
@@ -122,32 +89,6 @@ class Game:
             return replace(item, **{name: value.to(device) for name, value in vars(item).items()
                                     if torch.is_tensor(value)})
         return replace(self, layers=tuple(map(move, self.layers)), transitions=tuple(map(move, self.transitions)))
-
-
-@dataclass(frozen=True)
-class RepairConstraint:
-    """``gamma = (G, i)``: the winning continuation found for one obligation.
-
-    ``game`` holds the DAG (shared with the batch), ``winning`` the winning
-    action slots per depth, ``index`` the obligation within the batch.
-    Anchored constraints (root at time 0) can never be backtracked.
-    """
-
-    game: Game
-    winning: tuple
-    index: int
-
-    @property
-    def obligation(self):
-        return self.game.obligations[self.index]
-
-    @property
-    def root_time(self):
-        return self.obligation.time
-
-    @property
-    def anchored(self):
-        return self.root_time == 0
 
 
 # --------------------------------------------------------------- backends
