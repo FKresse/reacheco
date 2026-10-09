@@ -18,7 +18,7 @@ from time import perf_counter
 import torch
 
 from reacheco.backtrack import Backtrack
-from reacheco.constraints import compress, constraint_id
+from reacheco.constraints import compress
 from reacheco.continuation import find_continuations
 from reacheco.joint import joint
 from reacheco.losing import LosingSet
@@ -54,7 +54,7 @@ def brepair(problem, policy, original, frontiers, records, losing_set, backend, 
     """Algorithm 2 for the failure at the end of ``frontiers``; ``losing_set`` grows in place."""
     statistics = Counter()
     backtrack = Backtrack(problem, policy, frontiers, records, losing_set, merge_disabled=merge_disabled,
-                          merge_disabled_at=merge_disabled_at)
+                          merge_disabled_at=merge_disabled_at, repair=index)
     added = []
 
     def result(status, repaired=policy, current=(), reason=None):
@@ -62,12 +62,13 @@ def brepair(problem, policy, original, frontiers, records, losing_set, backend, 
         return BRepairResult(status, repaired, current, committed, backtrack.merge_disabled_at, delta, reason,
                              statistics)
 
-    unresolved = backtrack.failures(index)
+    unresolved = backtrack.failures()
     if not unresolved:
         # Every failing box has passing parents: merging alone created the failure.
         return result("repaired")
     committed, resolved = tuple(committed), {}
     while True:
+        # backtracking until all obligations are resolved (lines 4,5 and 15-18 in algorithm 2)
         while unresolved:
             found = find_continuations(unresolved, backend, problem, policy, losing_set, learn=learn)
             added.append(found.losing_delta)
@@ -75,13 +76,15 @@ def brepair(problem, policy, original, frontiers, records, losing_set, backend, 
             statistics["findcont_calls"] += 1
             statistics.update(f"horizon_{o.horizon}" for o in unresolved)      # games per depth
             for constraint in found.constraints:
-                resolved[constraint_id(constraint)] = constraint
+                resolved[constraint.constraint_id] = constraint
             if not found.unresolved:
                 break
             if any(o.time == 0 for o in found.unresolved):
                 return result("unknown", reason="initial-box-losing")
             unresolved = backtrack(found.unresolved)
         unresolved = ()
+        # compress one-step constraints to cell constraints, an optimization for Docking2d
+        # which has to deal with many 1-step games. 
         committed = compress(committed, keep_sources=False)
         current = compress(tuple(resolved.values()))
         solved = joint(policy, original, committed, current)
@@ -172,11 +175,13 @@ def repair(problem, policy, backend, *, losing_set=None, learn=True, merge=True,
     started = perf_counter()
     original, policy = policy, policy.copy()
     losing_set = LosingSet(problem, policy) if losing_set is None else losing_set
-    committed = {constraint_id(c): c for c in committed}
+    committed = {c.constraint_id: c for c in committed}
     merge_disabled_at, repairs = {}, []
     frontiers = records = None
     status = None
     while True:
+        # verify performs ReachStep until a fixed-point is reached (config depending),
+        # a failure is found, or the budget T is reached.
         result = verify(problem, policy, losing_set.intersects, merge=merge, merge_disabled_at=merge_disabled_at,
                         frontiers=frontiers, records=records)
         frontiers, records = result.frontiers, result.records
@@ -187,10 +192,13 @@ def repair(problem, policy, backend, *, losing_set=None, learn=True, merge=True,
         outcome = brepair(problem, policy, original, frontiers, records, losing_set, backend,
                           tuple(committed.values()), learn=learn, merge_disabled_at=merge_disabled_at,
                           index=len(repairs))
+        # the losing set is already expanded inside brepair, this earlier expansion
+        # makes it possible for later games to benefit from knowledge gained
+        # it is listed in Algorithm 1 for clarity of the procedure.
         protected = {t: cells - merge_disabled_at.get(t, set()) for t, cells in outcome.merge_disabled_at.items()}
         protected = {t: cells for t, cells in protected.items() if cells}
         merge_disabled_at = outcome.merge_disabled_at
-        committed = {constraint_id(c): c for c in outcome.committed}
+        committed = {c.constraint_id: c for c in outcome.committed}
         changed = policy.changed_cells(outcome.policy)
         entry = {"failure_step": result.failure_step, "failing": int(result.failing.sum()),
                  "status": outcome.status, "reason": outcome.reason, "changed_cells": len(changed),
@@ -206,10 +214,14 @@ def repair(problem, policy, backend, *, losing_set=None, learn=True, merge=True,
                 on_repair(entry)
             break
         if outcome.status == "repaired":
-            committed = {constraint_id(c): c
+            # for committed constraints we no longer care about sources 
+            # as they cannot be backtracked anyways.
+            committed = {c.constraint_id: c
                          for c in compress((*committed.values(), *outcome.current), keep_sources=False)}
         policy = outcome.policy
+        # Restart policy
         if greedy:
+            # if using greedy we need at least one clean full pass without repairs.
             deepest = max((int(key[8:]) for key in outcome.statistics if key.startswith("horizon_")), default=1)
             restart = max(0, result.failure_step - deepest)
             if protected:
@@ -223,6 +235,8 @@ def repair(problem, policy, backend, *, losing_set=None, learn=True, merge=True,
             on_repair(entry)
         frontiers, records = frontiers[:restart + 1], records[:restart]
     repaired = policy
+    # in case we are done repairing, prune the patch to only 'touched' cells in the current controllers 
+    # forward verification.
     if status == "safe" and prune:
         policy = _prune(original, repaired, records)
     return RepairResult(status, result.horizon if status == "safe" else None, policy, repaired,
@@ -235,20 +249,18 @@ def earliest_affected(frontiers, records, changed, protected, delta=(), losing_s
 
     A step is affected if it read a changed cell, produced a newly protected
     one, or queried ``L`` with a box meeting the boxes ``delta`` just added to
-    ``L``: L is queried with the rows and premerge pieces of ``X_{k+1}`` in
-    step ``k``, and with the pieces of step ``k + 1`` by the merge lookahead in
-    step ``k``. The frontiers before the affected step are unchanged, so the
-    forward pass resumes there (at ``X_0`` if nothing is affected).
+    ``L``: L is queried with the rows of ``X_{k+1}`` and their pieces in step
+    ``k``, and with the pieces of step ``k + 1`` by the merge lookahead in step
+    ``k``. A row contains its pieces, so checking the rows suffices. The
+    frontiers before the affected step are unchanged, so the forward pass
+    resumes there (at ``X_0`` if nothing is affected).
     """
     changed = torch.tensor(sorted(changed), dtype=torch.long)
     added = LosingSet(losing_set.problem, losing_set.policy, delta) if len(delta) else None
 
     def meets_added(step):
-        record = records[step]
         device = losing_set.policy.device
-        boxes = torch.cat((frontiers[step + 1], record.merged_pieces)).to(device)
-        cells = torch.cat((record.cells, record.cells[record.merged_piece_rows])).to(device)
-        return bool(added.intersects(boxes, cells).any())
+        return bool(added.intersects(frontiers[step + 1].to(device), records[step].cells.to(device)).any())
 
     following = added is not None and meets_added(0)
     for step, record in enumerate(records):

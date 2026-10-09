@@ -53,8 +53,7 @@ def verify(problem, policy, meets_losing=None, *, merge=True, merge_disabled=(),
             # Every trajectory has entered the goal with a safe transition.
             return Verification(True, math.inf, frontiers, records)
         disabled = set(merge_disabled) | set(merge_disabled_at.get(step, ()))
-        frontier, record = reach_step(boxes, policy, problem, meets_losing, merge=merge,
-                                      merge_disabled=disabled, previous=records[-1] if records else None)
+        frontier, record = reach_step(boxes, policy, problem, meets_losing, merge=merge, merge_disabled=disabled)
         frontiers.append(frontier.cpu())
         records.append(record)
         if bool(record.failing.any()):

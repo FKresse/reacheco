@@ -22,7 +22,7 @@ from time import perf_counter
 import torch
 from ortools.sat.python import cp_model
 
-from reacheco.constraints import CellConstraint, constraint_id, intersect
+from reacheco.constraints import CellConstraint, intersect
 
 TIME_LIMIT = 60.0
 
@@ -94,7 +94,7 @@ def joint(policy, original, committed, current):
                 constraint = support.constraint
                 for source in constraint.sources if isinstance(constraint, CellConstraint) else (constraint,):
                     if source.obligation.time > 0:
-                        conflicts[constraint_id(source)] = source
+                        conflicts[source.constraint_id] = source
         if not conflicts:
             # A changed shared cell may enable a committed game's other branches:
             # their cells must be free before a conflict counts as final.
@@ -124,34 +124,44 @@ def _support(constraint):
 def _key(value):
     return tuple(int(v) for v in value)
 
-
+# keeping encodings alive between calls could speed up the algorithm quiet a bit.
 class _Problem:
     """The CP-SAT model: one exactly-one choice per free cell, one assumption per constraint."""
 
     def __init__(self, policy, original, committed, current, released):
         self.policy = policy
         self.model = cp_model.CpModel()
+        # the policy cells we allow repairs over, this is resticted to keep old changes
+        # and make solving times shorter
+        # released adds more cells to stay complete if infeasible previously
         self.free = frozenset(cell for support in current for cell in support.cells) | released
         supports = committed + current
         relevant = sorted(frozenset().union(*(s.cells for s in supports)))
+        # values of actions in policy
         present = dict(zip(relevant, map(_key, policy.cell_values(relevant).tolist()))) if relevant else {}
+        # originial policy actions
         reference = dict(zip(relevant, map(_key, original.cell_values(relevant).tolist()))) if relevant else {}
+        # assign each cell its potential new values discovered by games
         candidates = _candidates(supports, self.free)
         self.literals, self.values, self.present = {}, {}, {}
         for cell in relevant:
             values = list(dict.fromkeys((*candidates.get(cell, ()), present[cell])))
             if cell in self.free:
+                # encode that each free cell must pick one of the action values
                 self.literals[cell] = tuple(self.model.new_bool_var("") for _ in values)
                 self.model.add_exactly_one(self.literals[cell])
                 self.values[cell], self.present[cell] = tuple(values), values.index(present[cell])
             else:
+                # not modified cells
                 self.literals[cell], self.values[cell], self.present[cell] = (True,), (present[cell],), 0
         self.index = {cell: {value: i for i, value in enumerate(values)} for cell, values in self.values.items()}
+        # encode the L1 cost, the L1 cost is on the INTEGER values not on the final output actions
         terms = [sum(abs(a - b) for a, b in zip(value, reference[cell])) * self.literals[cell][i]
                  for cell in sorted(self.free) for i, value in enumerate(self.values[cell])
                  if value != reference[cell]]
         if terms:
             self.model.minimize(sum(terms))
+        # add a hint that the previous solve might have been good
         for cell in sorted(self.free):
             for i, literal in enumerate(self.literals[cell]):
                 self.model.add_hint(literal, int(i == self.present[cell]))
