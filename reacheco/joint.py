@@ -19,7 +19,6 @@ import os
 from dataclasses import dataclass
 from time import perf_counter
 
-import torch
 from ortools.sat.python import cp_model
 
 from reacheco.constraints import CellConstraint, intersect
@@ -52,15 +51,10 @@ class JointResult:
 
 @dataclass(frozen=True)
 class _Support:
-    """A constraint, the cells it touches, its node rows per depth and their cells.
-
-    A cell constraint merged from several keeps them as ``members``.
-    """
+    """A constraint and the cells it touches; a cell constraint merged from several keeps them as ``members``."""
 
     constraint: object
     cells: frozenset
-    rows: tuple = ()
-    keys: tuple = ()
     members: tuple = ()
 
 
@@ -78,7 +72,7 @@ def joint(policy, original, committed, current):
         problem = _Problem(policy, original, committed_supports, current_supports, released)
         solver = cp_model.CpSolver()
         solver.parameters.max_time_in_seconds = TIME_LIMIT
-        solver.parameters.num_workers = max(1, min(16, len(os.sched_getaffinity(0))))
+        solver.parameters.num_workers = 16 #max(1, min(16, len(os.sched_getaffinity(0))))
         status = solver.solve(problem.model)
         name = solver.status_name(status)
         if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
@@ -116,9 +110,7 @@ def joint(policy, original, committed, current):
 def _support(constraint):
     if isinstance(constraint, CellConstraint):
         return _Support(constraint, frozenset({constraint.cell}))
-    rows = tuple(tuple(torch.where(layer.owners == constraint.index)[0].tolist()) for layer in constraint.game.layers)
-    keys = tuple(tuple(layer.cells[list(r)].tolist()) for layer, r in zip(constraint.game.layers, rows))
-    return _Support(constraint, frozenset(cell for depth in keys for cell in depth), rows, keys)
+    return _Support(constraint, frozenset(cell for cells in constraint.cells for cell in cells.tolist()))
 
 
 def _key(value):
@@ -212,39 +204,30 @@ class _Problem:
     def _encode_game(self, support):
         """Every reached node needs a winning value; a non-winning parent value reaches nothing."""
         constraint = support.constraint
-        game, winning = constraint.game, constraint.winning
+        # a new literal per constraint
         enabled = self._assume(support)
         active, choices = {}, {}
-        cell_of = {(depth, row): cell for depth, (rows, keys) in enumerate(zip(support.rows, support.keys))
-                   for row, cell in zip(rows, keys)}
-        for depth, transition in enumerate(game.transitions):
-            rows = support.rows[depth]
-            if not rows:
-                continue
-            values = dict(zip(rows, transition.values[list(rows)].tolist()))
-            won = dict(zip(rows, winning[depth][list(rows)].tolist()))
+        for depth, (cells, values, winning) in enumerate(zip(constraint.cells, constraint.values, constraint.winning)):
+            cells, values, winning = cells.tolist(), values.tolist(), winning.tolist()
             if depth:
-                previous = game.transitions[depth - 1]
-                branches = dict(zip(rows, previous.successor_branches[list(rows)].tolist()))
-                slots = previous.values.shape[1]
-                parent_values = dict(zip(support.rows[depth - 1],
-                                         previous.values[list(support.rows[depth - 1])].tolist()))
-            for row in rows:
+                # tried actions at each node
+                slots = constraint.values[depth - 1].shape[1]
+                branches = constraint.branches[depth].tolist()
+            for node, cell in enumerate(cells):
                 if depth == 0:
                     reached = enabled
                 else:
-                    parent, slot = divmod(branches[row], slots)
+                    parent, slot = divmod(branches[node], slots)
                     if (depth - 1, parent) not in active:
                         continue
-                    parent_cell = cell_of[(depth - 1, parent)]
-                    index = self.index[parent_cell].get(_key(parent_values[parent][slot]))
+                    index = self.index[parent_cells[parent]].get(_key(parent_values[parent][slot]))
                     if index not in choices[(depth - 1, parent)]:
                         continue        # a non-winning parent value never reaches this node
-                    reached = self._reached(active[(depth - 1, parent)], parent_cell, index)
-                active[(depth, row)] = reached
-                cell = cell_of[(depth, row)]
-                choices[(depth, row)] = self._choices(cell, [v for v, flag in zip(values[row], won[row]) if flag])
-                self._require(reached, cell, choices[(depth, row)])
+                    reached = self._reached(active[(depth - 1, parent)], parent_cells[parent], index)
+                active[(depth, node)] = reached
+                choices[(depth, node)] = self._choices(cell, [v for v, flag in zip(values[node], winning[node]) if flag])
+                self._require(reached, cell, choices[(depth, node)])
+            parent_cells, parent_values = cells, values
 
     def _require(self, active, cell, allowed):
         """``active`` implies that the cell takes one of the ``allowed`` values."""
@@ -278,13 +261,10 @@ def _candidates(supports, free):
             if constraint.cell in free:
                 candidates.setdefault(constraint.cell, {}).update(dict.fromkeys(constraint.values))
             continue
-        for depth, transition in enumerate(constraint.game.transitions):
-            rows = [row for row, cell in zip(support.rows[depth], support.keys[depth]) if cell in free]
-            if not rows:
-                continue
-            cells = dict(zip(support.rows[depth], support.keys[depth]))
-            for row, values in zip(rows, transition.values[rows].tolist()):
-                bucket = candidates.setdefault(cells[row], {})
-                for value in map(_key, values):
-                    bucket.setdefault(value)
+        for cells, values in zip(constraint.cells, constraint.values):
+            for cell, node_values in zip(cells.tolist(), values.tolist()):
+                if cell in free:
+                    bucket = candidates.setdefault(cell, {})
+                    for value in map(_key, node_values):
+                        bucket.setdefault(value)
     return {cell: tuple(values) for cell, values in candidates.items()}

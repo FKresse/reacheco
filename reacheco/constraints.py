@@ -56,19 +56,19 @@ class Obligation:
 class RepairConstraint:
     """``gamma = (G, i)``: the winning continuation found for one obligation.
 
-    ``game`` holds the DAG (a ``continuation.Game``, shared with the batch),
-    ``winning`` the winning action slots per depth, ``index`` the obligation
-    within the batch. Anchored constraints (root at time 0) can never be
-    backtracked.
+    ``G`` is the obligation's game DAG, as tuples over the depths ``d``:
+    ``cells[d]`` ``(N_d,)`` the policy cells of its nodes, ``values[d]``
+    ``(N_d, K_d, A)`` the native values of their action slots, ``winning[d]``
+    ``(N_d, K_d)`` the winning slots, and ``branches[d]`` ``(N_d,)`` the branch
+    leading to each node, ``parent * K_{d-1} + slot`` (empty at depth 0).
+    Anchored constraints (root at time 0) can never be backtracked.
     """
 
-    game: object
+    obligation: Obligation
+    cells: tuple
+    values: tuple
     winning: tuple
-    index: int
-
-    @property
-    def obligation(self):
-        return self.game.obligations[self.index]
+    branches: tuple
 
     @property
     def root_time(self):
@@ -122,7 +122,7 @@ def compress(constraints, *, keep_sources=True):
     constraints sorted by identity.
     """
     # anchored and non-anchored are always merged into different keys
-    cells, games, groups = {}, [], {}
+    cells, games, one_step = {}, [], []
 
     def add(constraint):
         if not keep_sources and constraint.sources:
@@ -135,43 +135,34 @@ def compress(constraints, *, keep_sources=True):
         if isinstance(constraint, CellConstraint):
             add(constraint)
         elif constraint.obligation.horizon == 1:
-            groups.setdefault((id(constraint.game), id(constraint.winning[0]), constraint.anchored),
-                              []).append(constraint)
+            one_step.append(constraint)
         else:
             games.append(constraint)
     # now process constraints to cell constraints
-    for (_, _, anchored), group in groups.items():
-        for constraint in _one_step_cells(group, anchored):
-            add(constraint)
+    for constraint in one_step:
+        for cell_constraint in _one_step_cells(constraint):
+            add(cell_constraint)
     # retunr games and 1-step compressed Cell constraints
     return tuple(games) + tuple(cells[key] for key in sorted(cells))
 
 
-def _one_step_cells(group, anchored):
-    """Cell constraints of the one-step repair constraints of one game, by cell (ascending)."""
-    game, winning = group[0].game, group[0].winning[0]
-    by_index = {}
-    for constraint in group:
-        by_index.setdefault(constraint.index, []).append(constraint)
-    layer, transition = game.layers[0], game.transitions[0]
-    rows, sources = {}, {}
-    for row, (owner, cell) in enumerate(zip(layer.owners.tolist(), layer.cells.tolist())):
-        if owner in by_index:
-            rows.setdefault(cell, []).append(row)
-            sources.setdefault(cell, {})[owner] = None
-    if set().union(*map(set, sources.values())) != set(by_index):
+def _one_step_cells(constraint):
+    """Cell constraints of a one-step repair constraint, one per cell of its root boxes.
+
+    A value survives if some slot holding it wins at every root box of the
+    cell; the values keep the slot order of the cell's first root box.
+    """
+    order, allowed = {}, {}
+    for cell, values, winning in zip(constraint.cells[0].tolist(), constraint.values[0].tolist(),
+                                     constraint.winning[0].tolist()):
+        values = [tuple(int(v) for v in value) for value in values]
+        won = {value for value, flag in zip(values, winning) if flag}
+        if cell in allowed:
+            allowed[cell] &= won
+        else:
+            order[cell], allowed[cell] = list(dict.fromkeys(values)), won
+    if not order:
         raise ValueError("a one-step repair constraint has no root box")
-    for cell in sorted(rows):
-        # A value survives if some slot holding it wins at every root box of the cell.
-        allowed = None
-        order = []
-        for row in rows[cell]:
-            values = [tuple(int(v) for v in value) for value in transition.values[row].tolist()]
-            won = {value for value, flag in zip(values, winning[row].tolist()) if flag}
-            if allowed is None:
-                order = list(dict.fromkeys(values))
-                allowed = won
-            else:
-                allowed &= won
-        yield CellConstraint(cell, tuple(v for v in order if v in allowed), anchored,
-                             tuple(c for index in sources[cell] for c in by_index[index]))
+    for cell in sorted(order):
+        yield CellConstraint(cell, tuple(v for v in order[cell] if v in allowed[cell]), constraint.anchored,
+                             (constraint,))

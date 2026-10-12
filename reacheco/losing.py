@@ -54,8 +54,7 @@ class LosingSet:
 
     def intersects(self, boxes, cells):
         """Per policy-aligned box with its cell: does it meet ``L`` (``U`` or a stored box)?"""
-        hit = self.problem.spec.intersects_unsafe(boxes)
-        return hit | self._compare(boxes, cells, contained=False) if self._cells else hit
+        return self.classify(boxes, cells, inside=False)[0]
 
     def contains(self, boxes, cells):
         """Per policy-aligned box: is it inside ``U`` or inside one stored box of its cell?
@@ -63,14 +62,26 @@ class LosingSet:
         A box covered only by several stored boxes together is reported as
         not contained; that only weakens pruning, never soundness.
         """
-        inside = self.problem.spec.inside_unsafe(boxes)
-        return inside | self._compare(boxes, cells, contained=True) if self._cells else inside
+        return self.classify(boxes, cells, meets=False)[1]
 
-    def _compare(self, boxes, cells, *, contained):
-        """Compare each box with the stored boxes of its cell, pairing only same-cell boxes."""
-        result = torch.zeros(len(boxes), dtype=torch.bool, device=boxes.device)
+    def classify(self, boxes, cells, *, meets=True, inside=True):
+        """``(intersects, contains)`` at once (``None`` for one not asked for), pairing each box
+        with the stored boxes of its cell only once."""
+        spec = self.problem.spec
+        hit = spec.intersects_unsafe(boxes) if meets else None
+        within = spec.inside_unsafe(boxes) if inside else None
+        if self._cells:
+            stored_hit, stored_within = self._compare(boxes, cells, meets, inside)
+            hit = hit | stored_hit if meets else None
+            within = within | stored_within if inside else None
+        return hit, within
+
+    def _compare(self, boxes, cells, meets, inside):
+        """Compare each box with the stored boxes of its cell: does it meet one, does it lie inside one?"""
+        hit = torch.zeros(len(boxes), dtype=torch.bool, device=boxes.device)
+        within = torch.zeros_like(hit)
         if not len(boxes):
-            return result
+            return hit, within
         occupied, counts, offsets, stored = self._table(boxes.device, boxes.dtype)
         cells = torch.as_tensor(cells, dtype=torch.long, device=boxes.device)
         position = torch.searchsorted(occupied, cells).clamp(max=len(occupied) - 1)
@@ -83,12 +94,11 @@ class LosingSet:
             rows = torch.searchsorted(ends, pairs, right=True)
             other = stored[offset[rows] + pairs - (ends[rows] - count[rows])]
             query = boxes[rows]
-            if contained:
-                match = ((other[:, 0] <= query[:, 0]) & (other[:, 1] >= query[:, 1])).all(1)
-            else:
-                match = ((query[:, 0] <= other[:, 1]) & (query[:, 1] >= other[:, 0])).all(1)
-            result[rows[match]] = True
-        return result
+            if meets:
+                hit[rows[((query[:, 0] <= other[:, 1]) & (query[:, 1] >= other[:, 0])).all(1)]] = True
+            if inside:
+                within[rows[((other[:, 0] <= query[:, 0]) & (other[:, 1] >= query[:, 1])).all(1)]] = True
+        return hit, within
 
     def _table(self, device, dtype):
         """Occupied cells (sorted), box counts and offsets, and all stored boxes, cached per device."""

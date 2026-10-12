@@ -17,7 +17,7 @@ games and forward verification share one transition semantics.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
 
@@ -37,7 +37,8 @@ PIECE_BUDGET = 16384
 @dataclass(frozen=True)
 class GameLayer:
     """Policy-aligned nodes at one depth: ``boxes``, ``cells``, the obligation
-    each node belongs to (``owners``), and whether it met ``L`` when expanded."""
+    each node belongs to (``owners``), and whether it meets ``L`` (only roots
+    can: deeper nodes are the pieces that do not)."""
 
     boxes: torch.Tensor
     cells: torch.Tensor
@@ -47,17 +48,16 @@ class GameLayer:
 
 @dataclass(frozen=True)
 class GameTransition:
-    """The actions tried at the nodes of one layer and where they lead.
+    """The actions tried at the nodes of one layer and where they lead, checked against ``L`` when expanded.
 
     ``values`` ``(N, K, A)`` are the native values of the ``K`` action slots
     per node. Per branch (node, slot), flattened as ``node * K + slot``:
     ``expanded``, ``terminal`` (horizon reached, tube uncertified, or all
-    pieces in the goal), ``safe_tubes``, ``goal_reached``. Terminal branches
-    keep no pieces; their pieces are summarized against ``L`` at expansion
-    (``terminal_intersects``, ``terminal_contained``). Pieces of the other
-    branches are ``post_boxes``/``post_cells`` with their ``post_branches``;
-    ``successor_posts`` lists the pieces that became nodes of the next layer,
-    ``successor_branches`` their branch.
+    pieces in the goal), ``safe_tubes``, ``goal_reached``, ``meets`` (a piece
+    of its post-image meets ``L``) and ``inside`` (it has pieces, none reached
+    the goal, and every piece that ends here lies inside ``L``). A piece ends
+    its branch if the branch is terminal or the piece meets ``L``; the others
+    become the nodes of the next layer, ``successor_branches`` their branch.
     """
 
     values: torch.Tensor
@@ -65,12 +65,8 @@ class GameTransition:
     terminal: torch.Tensor
     safe_tubes: torch.Tensor
     goal_reached: torch.Tensor
-    terminal_intersects: torch.Tensor
-    terminal_contained: torch.Tensor
-    post_boxes: torch.Tensor
-    post_cells: torch.Tensor
-    post_branches: torch.Tensor
-    successor_posts: torch.Tensor
+    meets: torch.Tensor
+    inside: torch.Tensor
     successor_branches: torch.Tensor
     pieces: int
 
@@ -82,13 +78,6 @@ class Game:
     obligations: tuple
     layers: tuple
     transitions: tuple
-    losing_version: int
-
-    def to(self, device):
-        def move(item):
-            return replace(item, **{name: value.to(device) for name, value in vars(item).items()
-                                    if torch.is_tensor(value)})
-        return replace(self, layers=tuple(map(move, self.layers)), transitions=tuple(map(move, self.transitions)))
 
 
 # --------------------------------------------------------------- backends
@@ -275,15 +264,36 @@ def find_continuations(obligations, backend, problem, policy, losing_set, *, lea
         statistics["solving_seconds"] += perf_counter() - started
         statistics["nodes"] += sum(len(layer.boxes) for layer in game.layers)
         statistics["pieces"] += sum(t.pieces for t in game.transitions)
-        game = game.to("cpu")
-        winning = tuple(mask.cpu() for mask in winning)
-        for index in torch.where(won)[0].tolist():
-            constraints.append(RepairConstraint(game, winning, index))
+        constraints.extend(_constraints(game, winning, torch.where(won)[0].tolist()))
         won_set = {group[i] for i in torch.where(won)[0].tolist()}
         pending = [o for o in pending if o not in won_set]
         deltas.append(delta.cpu())
     delta = torch.cat(deltas) if deltas else torch.empty((0, 2, len(policy.thresholds)), dtype=policy.lower.dtype)
     return FindContResult(tuple(constraints), tuple(pending), delta, statistics)
+
+
+def _constraints(game, winning, won):
+    """A repair constraint for each won obligation: its nodes of the batch's game DAG, renumbered."""
+    parts = {index: ([], [], [], []) for index in won}
+    previous = None
+    for depth, (layer, transition) in enumerate(zip(game.layers, game.transitions)):
+        owners = layer.owners.cpu()
+        order = torch.argsort(owners, stable=True)
+        counts = torch.bincount(owners, minlength=len(game.obligations))
+        position = torch.empty_like(order)
+        position[order] = torch.arange(len(order)) - (counts.cumsum(0) - counts)[owners[order]]
+        if depth:
+            slots = game.transitions[depth - 1].values.shape[1]
+            branches = game.transitions[depth - 1].successor_branches.cpu()
+            branches = previous[branches // slots] * slots + branches % slots
+        cells, values, masks = layer.cells.cpu(), transition.values.cpu(), winning[depth].cpu()
+        for index, rows in zip(range(len(counts)), torch.split(order, counts.tolist())):
+            if index in parts:
+                for part, tensor in zip(parts[index], (cells, values, masks)):
+                    part.append(tensor[rows])
+                parts[index][3].append(branches[rows] if depth else rows.new_empty(0))
+        previous = position
+    return [RepairConstraint(game.obligations[index], *map(tuple, parts[index])) for index in won]
 
 
 def _synchronize(policy):
@@ -328,7 +338,7 @@ def _expand(obligations, backend, problem, policy, losing_set):
         if layer is None:
             break
         layers.append(layer)
-    return Game(tuple(obligations), tuple(layers), tuple(transitions), losing_set.version)
+    return Game(tuple(obligations), tuple(layers), tuple(transitions))
 
 
 def _expand_layer(layer, depth, last, backend, problem, policy, losing_set):
@@ -342,10 +352,10 @@ def _expand_layer(layer, depth, last, backend, problem, policy, losing_set):
         values = torch.cat((values, policy.cell_values(layer.cells)[:, None, :]), 1)
     slots = values.shape[1]
     shape, device = (nodes_count, slots), values.device
-    expanded, terminal, safe = (torch.zeros(shape, dtype=torch.bool, device=device) for _ in range(3))
-    goal_reached, terminal_intersects, terminal_contained = (torch.zeros_like(expanded) for _ in range(3))
-    kept_boxes, kept_cells, kept_branches, children = [], [], [], []
-    kept_count = pieces_count = 0
+    expanded, terminal, safe, goal_reached, meets, inside = (torch.zeros(shape, dtype=torch.bool, device=device)
+                                                             for _ in range(6))
+    child_branches, child_boxes, child_cells = [], [], []
+    pieces_count = 0
     flat_values = values.reshape(-1, values.shape[-1])
 
     # A node inside the goal (and not in U or L) is a terminal win.
@@ -369,60 +379,46 @@ def _expand_layer(layer, depth, last, backend, problem, policy, losing_set):
         # only its containment in L lets the node be certified losing.
         terminal.view(-1)[branches] = last | ~tube_ok
         remaining = torch.zeros(len(branches), dtype=torch.long, device=device)
-        reached, meets, outside = torch.zeros_like(remaining), torch.zeros_like(remaining), torch.zeros_like(remaining)
+        reached, hits, outside = torch.zeros_like(remaining), torch.zeros_like(remaining), torch.zeros_like(remaining)
         for posts, cells, parents, _, reached_parents in successors(problem, policy, boxes, actions, tube_ok,
                                                                     piece_budget=PIECE_BUDGET):
             reached.index_add_(0, reached_parents, torch.ones_like(reached_parents))
             remaining.index_add_(0, parents, torch.ones_like(parents))
-            intersects = losing_set.intersects(posts, cells)
-            contained = losing_set.contains(posts, cells)
-            meets.index_add_(0, parents, intersects.long())
-            outside.index_add_(0, parents, (~contained).long())
+            intersects, contained = losing_set.classify(posts, cells)
             pieces_count += len(posts)
             owner = branches[parents]
-            keep = ~terminal.view(-1)[owner]
-            if bool(keep.any()):
-                children.append(torch.where(~intersects[keep])[0] + kept_count)
-                kept_boxes.append(posts[keep])
-                kept_cells.append(cells[keep])
-                kept_branches.append(owner[keep])
-                kept_count += int(keep.sum())
+            # Pieces of terminal branches and pieces meeting L end here; the others become nodes of the next layer.
+            ends = terminal.view(-1)[owner] | intersects
+            hits.index_add_(0, parents, intersects.long())
+            outside.index_add_(0, parents, (ends & ~contained).long())
+            if not bool(ends.all()):
+                child_branches.append(owner[~ends])
+                child_boxes.append(posts[~ends])
+                child_cells.append(cells[~ends])
         goal_reached.view(-1)[branches] = reached > 0
         # Reaching the goal with nothing left over ends a branch successfully.
         terminal.view(-1)[branches] |= (remaining == 0) & (reached > 0)
-        terminal_intersects.view(-1)[branches] = meets > 0
-        terminal_contained.view(-1)[branches] = (remaining > 0) & (outside == 0) & (reached == 0)
+        meets.view(-1)[branches] = hits > 0
+        inside.view(-1)[branches] = (remaining > 0) & (outside == 0) & (reached == 0)
 
-    empty = torch.empty(0, dtype=torch.long, device=device)
-    post_boxes = torch.cat(kept_boxes) if kept_boxes else layer.boxes.new_empty((0, *layer.boxes.shape[1:]))
-    post_cells = torch.cat(kept_cells) if kept_cells else empty
-    post_branches = torch.cat(kept_branches) if kept_branches else empty
-    successor_posts = torch.cat(children) if children else empty
-    # Terminal branches keep no pieces; only their summaries matter.
-    summarized = terminal
+    successor_branches = torch.cat(child_branches) if child_branches else torch.empty(0, dtype=torch.long,
+                                                                                         device=device)
     transition = GameTransition(
         values=values, expanded=expanded, terminal=terminal, safe_tubes=safe, goal_reached=goal_reached,
-        terminal_intersects=terminal_intersects & summarized, terminal_contained=terminal_contained & summarized,
-        post_boxes=post_boxes, post_cells=post_cells, post_branches=post_branches,
-        successor_posts=successor_posts, successor_branches=post_branches[successor_posts], pieces=pieces_count)
-    if not len(successor_posts):
+        meets=meets, inside=inside, successor_branches=successor_branches, pieces=pieces_count)
+    if not len(successor_branches):
         return transition, None
-    next_layer = GameLayer(post_boxes[successor_posts], post_cells[successor_posts],
-                           layer.owners[post_branches[successor_posts] // slots],
-                           torch.zeros(len(successor_posts), dtype=torch.bool, device=device))
+    next_layer = GameLayer(torch.cat(child_boxes), torch.cat(child_cells), layer.owners[successor_branches // slots],
+                           torch.zeros(len(successor_branches), dtype=torch.bool, device=device))
     return transition, next_layer
 
 
 def _solve(game, backend, problem, policy, losing_set, *, learn):
     """Winning slots per depth, which obligations won, and the boxes certified losing.
 
-    Labels are computed against ``L`` as it was during expansion; the boxes
-    certified here are added to ``L`` once at the end.
+    Labels use ``L`` as it was during expansion (recorded in the game); the
+    boxes certified here are added to ``L`` once at the end.
     """
-    # this is mainly a leftover from a previous prototype, could be simplified further such that
-    # losing set is no longer passed even.
-    if game.losing_version != losing_set.version:
-        raise ValueError("a game must be solved against the losing set it was expanded with")
     winning, losing_nodes = [None] * len(game.transitions), [None] * len(game.transitions)
     winning_next = losing_next = None
     for depth in range(len(game.transitions) - 1, -1, -1):
@@ -430,37 +426,32 @@ def _solve(game, backend, problem, policy, losing_set, *, learn):
         nodes_count, slots = transition.values.shape[:2]
         branches = nodes_count * slots
         expanded, terminal = transition.expanded.reshape(-1), transition.terminal.reshape(-1)
-        post_meets = losing_set.intersects(transition.post_boxes, transition.post_cells)
-        # branch meets losing set?
-        branch_meets = _any_per(post_meets, transition.post_branches, branches)
-        branch_meets |= transition.terminal_intersects.reshape(-1)
+        successor_branches = transition.successor_branches
+        children = torch.zeros(branches, dtype=torch.long, device=expanded.device)
+        children.index_add_(0, successor_branches, torch.ones_like(successor_branches))
+        branch_meets = transition.meets.reshape(-1)
         branch_winning = expanded & terminal & ~branch_meets
         continuing = expanded & ~terminal & ~branch_meets
         if bool(continuing.any()):
-            children = torch.zeros(branches, dtype=torch.long, device=expanded.device)
-            winning_children = torch.zeros_like(children)
-            children.index_add_(0, transition.successor_branches, torch.ones_like(transition.successor_branches))
-            winning_children.index_add_(0, transition.successor_branches, winning_next.long())
+            winning_children = torch.zeros_like(children).index_add_(0, successor_branches, winning_next.long())
             if bool((continuing & (children == 0)).any()):
                 raise ValueError("a continuing branch has no successor nodes")
             # only become winnign if all children are winning (quantifier alternation in the paper)
             branch_winning |= continuing & (winning_children == children)
         slot_winning = branch_winning.reshape(nodes_count, slots) & transition.safe_tubes
         winning[depth] = slot_winning
-        winning_next = slot_winning.any(1) & ~losing_set.intersects(layer.boxes, layer.cells)
+        winning_next = slot_winning.any(1) & ~layer.losing
         if not learn:
             continue
-        # A piece is losing if it lies in L or became a losing node of the next layer.
-        post_losing = losing_set.contains(transition.post_boxes, transition.post_cells)
+        # A branch is losing if the pieces ending there lie in L and the others became losing nodes.
+        branch_losing = transition.inside.reshape(-1)
         if losing_next is not None:
-            post_losing[transition.successor_posts] |= losing_next
-        branch_losing = _all_per(post_losing, transition.post_branches, branches)
-        branch_losing = torch.where(transition.terminal.reshape(-1), transition.terminal_contained.reshape(-1),
-                                    branch_losing)
-        branch_losing &= ~transition.goal_reached.reshape(-1)
+            losing_children = torch.zeros_like(children).index_add_(0, successor_branches, losing_next.long())
+            branch_losing = branch_losing & (losing_children == children)
         node_losing = (expanded & branch_losing).reshape(nodes_count, slots).all(1)
         losing_nodes[depth] = node_losing
-        losing_next = losing_set.contains(layer.boxes, layer.cells) | node_losing
+        # Deeper nodes never meet L, so a node is losing exactly when certified here.
+        losing_next = node_losing
 
     roots = game.layers[0]
     count = torch.bincount(roots.owners, minlength=len(game.obligations))
@@ -486,17 +477,6 @@ def _solve(game, backend, problem, policy, losing_set, *, learn):
     delta = losing_set.add(torch.cat(certified)) if certified else \
         torch.empty((0, 2, len(policy.thresholds)), dtype=policy.lower.dtype)
     return tuple(winning), won, delta
-
-
-def _any_per(values, owners, count):
-    hits = torch.zeros(count, dtype=torch.long, device=values.device)
-    return hits.index_add_(0, owners, values.long()) > 0
-
-
-def _all_per(values, owners, count):
-    total = torch.zeros(count, dtype=torch.long, device=values.device).index_add_(0, owners, torch.ones_like(owners))
-    hits = torch.zeros_like(total).index_add_(0, owners, values.long())
-    return (total > 0) & (hits == total)
 
 
 def _cell_losing(cell, backend, problem, policy, losing_set):
