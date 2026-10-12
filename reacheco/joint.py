@@ -72,12 +72,15 @@ def joint(policy, original, committed, current):
         problem = _Problem(policy, original, committed_supports, current_supports, released)
         solver = cp_model.CpSolver()
         solver.parameters.max_time_in_seconds = TIME_LIMIT
-        solver.parameters.num_workers = 16 #max(1, min(16, len(os.sched_getaffinity(0))))
+        solver.parameters.num_workers = max(1, min(16, len(os.sched_getaffinity(0))))
         status = solver.solve(problem.model)
         name = solver.status_name(status)
         if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
             return JointResult(name, problem.realize(solver), seconds=perf_counter() - started)
         if status != cp_model.INFEASIBLE:
+            # UNKOWN (timeout) or MODEL_INVALID
+            if status == cp_model.MODEL_INVALID:
+                raise RuntimeError("Incorrect encoding")
             return JointResult(name, policy, seconds=perf_counter() - started)
         core = [problem.assumptions[int(index)] for index in solver.sufficient_assumptions_for_infeasibility()
                 if int(index) in problem.assumptions]
@@ -88,7 +91,9 @@ def joint(policy, original, committed, current):
                 constraint = support.constraint
                 for source in constraint.sources if isinstance(constraint, CellConstraint) else (constraint,):
                     if source.obligation.time > 0:
+                        # collect conflicts for backtracking
                         conflicts[source.constraint_id] = source
+        # release more cells
         if not conflicts:
             # A changed shared cell may enable a committed game's other branches:
             # their cells must be free before a conflict counts as final.
@@ -161,9 +166,11 @@ class _Problem:
         self.assumptions = {}
         merged = {}
         for support in supports:
+            # encode constraints (multi-step)
             if not isinstance(support.constraint, CellConstraint):
                 self._encode_game(support)
                 continue
+            # branch for encoding cell constraints
             cell = support.constraint.cell
             if cell not in merged:
                 merged[cell] = _Support(support.constraint, support.cells, members=(support,))
@@ -220,11 +227,15 @@ class _Problem:
                     parent, slot = divmod(branches[node], slots)
                     if (depth - 1, parent) not in active:
                         continue
+                    # self.index is the options each cell has to play, 
+                    # index is the position of: the parent cell has the value that leads to this node
                     index = self.index[parent_cells[parent]].get(_key(parent_values[parent][slot]))
                     if index not in choices[(depth - 1, parent)]:
                         continue        # a non-winning parent value never reaches this node
+                    # the literal for being reached
                     reached = self._reached(active[(depth - 1, parent)], parent_cells[parent], index)
                 active[(depth, node)] = reached
+                # literals for all possible choices
                 choices[(depth, node)] = self._choices(cell, [v for v, flag in zip(values[node], winning[node]) if flag])
                 self._require(reached, cell, choices[(depth, node)])
             parent_cells, parent_values = cells, values

@@ -195,6 +195,7 @@ def repair(problem, policy, backend, *, losing_set=None, learn=True, merge=True,
         # the losing set is already expanded inside brepair, this earlier expansion
         # makes it possible for later games to benefit from knowledge gained
         # it is listed in Algorithm 1 for clarity of the procedure.
+        # merge protected cells
         protected = {t: cells - merge_disabled_at.get(t, set()) for t, cells in outcome.merge_disabled_at.items()}
         protected = {t: cells for t, cells in protected.items() if cells}
         merge_disabled_at = outcome.merge_disabled_at
