@@ -162,7 +162,7 @@ def tables(results, seeds):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("command", choices=("run", "tables"))
+    parser.add_argument("command", choices=("run", "report"))
     parser.add_argument("--results", type=Path, default=ROOT / "results/acc")
     parser.add_argument("--methods", nargs="+", choices=list(METHODS), default=list(METHODS))
     parser.add_argument("--pmax", nargs="+", type=int, default=list(PMAX))
