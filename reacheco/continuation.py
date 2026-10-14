@@ -23,7 +23,7 @@ from time import perf_counter
 
 import torch
 
-from reacheco.boxes import cell_pieces, cut_goal, inside_any
+from reacheco.boxes import cell_pieces, convert, cut_goal, inside_any
 from reacheco.constraints import RepairConstraint
 from reacheco.reach import successors
 from reacheco.tubes import tube_safe
@@ -305,7 +305,7 @@ def _expand(obligations, backend, problem, policy, losing_set):
     """Expand the game DAGs of obligations sharing one horizon up to that horizon."""
     spec, device, dtype = problem.spec, policy.device, policy.lower.dtype
     roots = torch.stack([o.box for o in obligations]).to(device=device, dtype=dtype)
-    goals = spec.goal_boxes.to(roots)
+    goals = convert(spec.goal_boxes, roots.dtype, outward=False).to(roots.device)
     active, parents, _, reached = cut_goal(roots, goals, ~spec.intersects_unsafe(roots))
     # A root entirely inside the goal stays as a terminal node.
     completed = reached & (torch.bincount(parents, minlength=len(roots)) == 0)
@@ -359,7 +359,7 @@ def _expand_layer(layer, depth, last, backend, problem, policy, losing_set):
     flat_values = values.reshape(-1, values.shape[-1])
 
     # A node inside the goal (and not in U or L) is a terminal win.
-    in_goal = inside_any(layer.boxes, spec.goal_boxes.to(layer.boxes))
+    in_goal = inside_any(layer.boxes, convert(spec.goal_boxes, layer.boxes.dtype, outward=False).to(device))
     in_goal &= ~spec.intersects_unsafe(layer.boxes) & ~layer.losing
     for mask in (expanded, terminal, safe, goal_reached):
         mask[in_goal] = True

@@ -127,10 +127,6 @@ class DWCPolicy:
             )
         return self._override_table
 
-    def box_values(self, boxes):
-        """Native values selected in each policy-aligned box."""
-        return self.cell_values(self.box_cell_ids(boxes))
-
     def set_cell_values(self, cell_ids, values):
         """Override native values; a value equal to the network's removes the override."""
         ids = self._check_ids(cell_ids)

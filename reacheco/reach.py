@@ -24,7 +24,7 @@ from dataclasses import dataclass
 
 import torch
 
-from reacheco.boxes import cell_pieces, cut_goal, iter_cell_pieces
+from reacheco.boxes import cell_pieces, convert, cut_goal, iter_cell_pieces
 from reacheco.tubes import tube_safe
 
 TRANSITION_BATCH = 32_768
@@ -42,7 +42,7 @@ def successors(problem, policy, boxes, actions, tube_ok, *, piece_budget=None):
     a single chunk; otherwise at most that many pieces per chunk.
     """
     spec = problem.spec
-    goals = spec.goal_boxes.to(boxes)
+    goals = convert(spec.goal_boxes, boxes.dtype, outward=False).to(boxes.device)
     posts = problem.system.post(boxes, actions)
     chunks = [cell_pieces(posts, policy)] if piece_budget is None else iter_cell_pieces(posts, policy, piece_budget)
     for pieces, cells, parents in chunks:
@@ -54,7 +54,8 @@ def successors(problem, policy, boxes, actions, tube_ok, *, piece_budget=None):
 class StepRecord:
     """What later stages need to know about one transition ``X_k -> X_{k+1}``.
 
-    All tensors live on the CPU.
+    All tensors live on the CPU; index tensors are int32 (records dominate
+    host memory on long runs).
 
     Source boxes, the policy-aligned parts of ``X_k`` (``M`` rows):
         ``source_parents`` (row of ``X_k``) and ``source_cells``.
@@ -86,7 +87,7 @@ def reach_step(boxes, policy, problem, meets_losing, *, merge=True, merge_disabl
     ``L``. ``merge=False`` keeps every piece as its own row.
     """
     spec = problem.spec
-    goals = spec.goal_boxes.to(boxes)
+    goals = convert(spec.goal_boxes, boxes.dtype, outward=False).to(boxes.device)
     active, active_parents, _, _ = cut_goal(boxes, goals, ~spec.intersects_unsafe(boxes))
     source_boxes, source_cells, parents = cell_pieces(active, policy)
     source_parents = active_parents[parents]
@@ -155,12 +156,19 @@ def reach_step(boxes, policy, problem, meets_losing, *, merge=True, merge_disabl
     # hits were split above), so checking rows is checking every Post piece.
     failing = (unsafe_tubes > 0) | meets_losing(frontier, cells)
     record = StepRecord(
-        source_parents=source_parents.cpu(), source_cells=source_cells.cpu(),
-        piece_sources=piece_sources.cpu(), piece_rows=rows.cpu(), cells=cells.cpu(),
-        failing=failing.cpu(), row_sources=row_sources.cpu(),
-        touched_cells=torch.unique(torch.cat(touched)).cpu(),
+        source_parents=_index(source_parents), source_cells=_index(source_cells),
+        piece_sources=_index(piece_sources), piece_rows=_index(rows), cells=_index(cells),
+        failing=failing.cpu(), row_sources=_index(row_sources),
+        touched_cells=_index(torch.unique(torch.cat(touched))),
     )
     return frontier, record
+
+
+def _index(values):
+    """An index tensor as stored in a ``StepRecord``: int32 on the CPU."""
+    if len(values) and int(values.max()) > torch.iinfo(torch.int32).max:
+        raise OverflowError("record indices exceed int32")
+    return values.to(device="cpu", dtype=torch.int32)
 
 
 def _assign_rows(group, group_cells, piece_cells, separate):

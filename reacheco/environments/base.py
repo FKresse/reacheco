@@ -4,6 +4,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 import gymnasium as gym
+import torch
 
 
 class System(gym.Env, ABC):
@@ -30,3 +31,17 @@ class System(gym.Env, ABC):
         contains all states visited during interval ``k`` from any start in the
         box. Every segment is computed from the start box directly.
         """
+
+
+def outward(boxes, dtype):
+    """Float64 boxes ``(N, 2, D)`` as ``dtype``, enclosing the exact bounds.
+
+    Pads the float64 round-off of the propagators (a few operations of
+    relative error ``eps`` on values of magnitude at most ``1 + |bound|``),
+    converts, and rounds one more step outward.
+    """
+    pad = 128 * torch.finfo(torch.float64).eps * (1 + boxes.abs().amax(1))
+    lo = (boxes[:, 0] - pad).to(dtype)
+    hi = (boxes[:, 1] + pad).to(dtype)
+    return torch.stack((torch.nextafter(lo, torch.full_like(lo, -torch.inf)),
+                        torch.nextafter(hi, torch.full_like(hi, torch.inf))), dim=1)

@@ -60,6 +60,19 @@ def cell_pieces(boxes, grid):
     return torch.cat(pieces), torch.cat(cells), torch.cat(parents)
 
 
+def convert(boxes, dtype, *, outward):
+    """Float64 boxes as ``dtype``, rounded outward (enclosing ``boxes``) or inward (enclosed by them)."""
+    lower, upper = boxes[:, 0].to(dtype), boxes[:, 1].to(dtype)
+    down, up = torch.full_like(lower, -torch.inf), torch.full_like(lower, torch.inf)
+    if outward:
+        lower = torch.where(lower.to(boxes.dtype) > boxes[:, 0], torch.nextafter(lower, down), lower)
+        upper = torch.where(upper.to(boxes.dtype) < boxes[:, 1], torch.nextafter(upper, up), upper)
+    else:
+        lower = torch.where(lower.to(boxes.dtype) < boxes[:, 0], torch.nextafter(lower, up), lower)
+        upper = torch.where(upper.to(boxes.dtype) > boxes[:, 1], torch.nextafter(upper, down), upper)
+    return torch.stack((lower, upper), 1)
+
+
 def inside_any(boxes, goals):
     """Whether each box is contained in at least one of the boxes ``goals`` ``(G, 2, D)``."""
     return ((boxes[:, None, 0] >= goals[None, :, 0]).all(-1)

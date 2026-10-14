@@ -20,7 +20,7 @@ import gymnasium as gym
 import numpy as np
 import torch
 
-from reacheco.environments.base import System
+from reacheco.environments.base import System, outward
 from reacheco.spec import SafetySpec
 
 BATCH = 32_768
@@ -73,7 +73,7 @@ class Docking2D(System):
             return torch.cat([self.post(boxes[start:start + BATCH], actions[start:start + BATCH])
                               for start in range(0, len(boxes), BATCH)])
         z = self._augmented(boxes, actions)
-        return _outward(_linear_bounds(z, self._matrix(self.config.dt, z))[:, :, :4], boxes.dtype)
+        return outward(_linear_bounds(z, self._matrix(self.config.dt, z))[:, :, :4], boxes.dtype)
 
     @torch.no_grad()
     def tube(self, boxes, actions, segments):
@@ -97,7 +97,7 @@ class Docking2D(System):
         hi = torch.einsum("nj,sij->sni", z_hi, positive) + torch.einsum("nj,sij->sni", z_lo, negative)
         radius = torch.maximum(lo.abs(), hi.abs()) @ variation.T
         tube = torch.stack((lo - radius, hi + radius), dim=2)[..., :4]
-        return _outward(tube.reshape(-1, 2, 4), boxes.dtype).reshape(segments, len(boxes), 2, 4)
+        return outward(tube.reshape(-1, 2, 4), boxes.dtype).reshape(segments, len(boxes), 2, 4)
 
     def _matrix(self, time, reference, *, absolute=False):
         """``exp(K t)``, or ``exp(|K| t) - I`` clipped at 0, cached per device."""
@@ -124,13 +124,8 @@ def _linear_bounds(boxes, matrix):
     return torch.stack((lo, hi), dim=1)
 
 
-def _outward(boxes, dtype):
-    """Pad float64 round-off, convert, and round one more step outward."""
-    pad = 128 * torch.finfo(torch.float64).eps * (1 + boxes.abs().amax(1))
-    lo = (boxes[:, 0] - pad).to(dtype)
-    hi = (boxes[:, 1] + pad).to(dtype)
-    return torch.stack((torch.nextafter(lo, torch.full_like(lo, -torch.inf)),
-                        torch.nextafter(hi, torch.full_like(hi, torch.inf))), dim=1)
+# Relative margin for the float64 round-off of the few operations in a spec check.
+ROUNDING = 16 * torch.finfo(torch.float64).eps
 
 
 @dataclass(frozen=True, eq=False)
@@ -159,18 +154,23 @@ class Docking2DSpec(SafetySpec):
                    speed_slope=2 * system.config.mean_motion)
 
     def intersects_unsafe(self, boxes):
+        # In float64, with the round-off margin towards "unsafe".
         smallest_distance, _ = _norm_range(boxes[:, 0, :2], boxes[:, 1, :2])
         _, largest_speed = _norm_range(boxes[:, 0, 2:], boxes[:, 1, 2:])
-        return largest_speed > self.speed_offset + self.speed_slope * smallest_distance
+        limit = self.speed_offset + self.speed_slope * smallest_distance
+        return largest_speed * (1 + ROUNDING) > limit * (1 - ROUNDING)
 
     def inside_unsafe(self, boxes):
+        # In float64, with the round-off margin towards "not inside".
         _, largest_distance = _norm_range(boxes[:, 0, :2], boxes[:, 1, :2])
         smallest_speed, _ = _norm_range(boxes[:, 0, 2:], boxes[:, 1, 2:])
-        return smallest_speed > self.speed_offset + self.speed_slope * largest_distance
+        limit = self.speed_offset + self.speed_slope * largest_distance
+        return smallest_speed * (1 - ROUNDING) > limit * (1 + ROUNDING)
 
 
 def _norm_range(lower, upper):
-    """Smallest and largest Euclidean norm over the box ``[lower, upper]``."""
+    """Smallest and largest Euclidean norm over the box ``[lower, upper]``, in float64."""
+    lower, upper = lower.double(), upper.double()
     smallest = torch.where((lower <= 0) & (upper >= 0), 0.0, torch.minimum(lower.abs(), upper.abs()))
     largest = torch.maximum(lower.abs(), upper.abs())
     return torch.linalg.vector_norm(smallest, dim=-1), torch.linalg.vector_norm(largest, dim=-1)

@@ -54,6 +54,10 @@ class ACC(System):
     ``boundary_probability`` at the lower-left corner of the box with the
     smallest position in its velocity slab, nudged in float32 until it lies
     strictly inside the braking invariant ``p > max(-v, 0)^2 / (2 B)``.
+    
+    
+    ACC requiered exact numerics, as simple rounding buts many boxes exactly on thresholds
+    this results in a larger number of additional boxes, going oom for pmax 100.
     """
 
     metadata = {"render_modes": []}
@@ -65,6 +69,11 @@ class ACC(System):
                  boundary_probability=0.1, epsilon=1e-6):
         super().__init__()
         self.config = config or ACCConfig()
+        # The propagators take dt as exactly 1 / steps and integer accelerations.
+        self._steps = round(1.0 / self.config.dt)
+        if (abs(self._steps * self.config.dt - 1.0) > 1e-12 or self.config.max_acceleration % 1
+                or self.config.max_braking_acceleration % 1):
+            raise ValueError("ACC needs dt = 1 / k for an integer k and integer accelerations")
         if mode not in ("train", "evaluate"):
             raise ValueError("mode must be 'train' or 'evaluate'")
         self.mode = mode
@@ -90,14 +99,23 @@ class ACC(System):
 
     @torch.no_grad()
     def post(self, boxes, actions):
-        """Exact successor box: the affine map is monotone in both coordinates."""
-        dt = self.config.dt
-        a = self._acceleration(actions, boxes)
-        lower, upper = boxes[:, 0], boxes[:, 1]
-        position = torch.stack((lower[:, 0] + dt * lower[:, 1] + 0.5 * dt**2 * a,
-                                upper[:, 0] + dt * upper[:, 1] + 0.5 * dt**2 * a), 1)
-        velocity = torch.stack((lower[:, 1] + dt * a, upper[:, 1] + dt * a), 1)
-        return torch.stack((position, velocity), 2)
+        """Exact successor box: the affine map is monotone in both coordinates.
+
+        With ``dt = 1 / k``: ``p' = (2 k^2 p + 2 k v + a) / (2 k^2)`` and
+        ``v' = (k v + a) / k``, rounded outward to the dtype of ``boxes``
+        (``_rounded``).
+        """
+        k = self._steps
+        a = self._acceleration(actions, boxes.new_empty(0, dtype=torch.float64))
+        # does the result fit into 64 bit?
+        exact = _exact_inputs(boxes, actions, (2 * k * k, 2 * k, k), self._acceleration_bits())
+        bounds = []
+        for corner, upward in ((boxes[:, 0].double(), False), (boxes[:, 1].double(), True)):
+            position = _rounded((2 * k * k * corner[:, 0], 2 * k * corner[:, 1], a), 2 * k * k, boxes.dtype,
+                                upward=upward, exact=exact)
+            velocity = _rounded((k * corner[:, 1], a), k, boxes.dtype, upward=upward, exact=exact)
+            bounds.append(torch.stack((position, velocity), 1))
+        return torch.stack(bounds, 1)
 
     @torch.no_grad()
     def tube(self, boxes, actions, segments):
@@ -106,20 +124,44 @@ class ACC(System):
         ``p(t) = p + v t + a t^2 / 2`` is increasing in ``p`` and ``v``, so its
         extremes over the box are attained at the lower and upper corner. Over
         a segment ``[t0, t1]`` the extreme lies at an endpoint or at the
-        stationary point ``-v / a``. Velocity is affine in ``t``.
+        stationary point ``-v / a``. Velocity is affine in ``t``. Segment
+        endpoints are ``j / m`` with ``m = k * segments``; bounds are rounded
+        outward to the dtype of ``boxes`` (``_rounded``).
         """
-        if int(segments) < 1:
+        segments = int(segments)
+        if segments < 1:
             raise ValueError("segments must be positive")
-        a = self._acceleration(actions, boxes)[None]
-        times = torch.linspace(0.0, self.config.dt, int(segments) + 1, dtype=boxes.dtype, device=boxes.device)
-        t0, t1 = times[:-1, None], times[1:, None]
-        lower, upper = boxes[:, 0], boxes[:, 1]
-        position_lower = _quadratic_extreme(lower[None, :, 0], lower[None, :, 1], a, t0, t1, minimum=True)
-        position_upper = _quadratic_extreme(upper[None, :, 0], upper[None, :, 1], a, t0, t1, minimum=False)
-        velocity_lower = torch.minimum(lower[None, :, 1] + a * t0, lower[None, :, 1] + a * t1)
-        velocity_upper = torch.maximum(upper[None, :, 1] + a * t0, upper[None, :, 1] + a * t1)
-        return torch.stack((torch.stack((position_lower, velocity_lower), -1),
-                            torch.stack((position_upper, velocity_upper), -1)), 2)
+        m = self._steps * segments
+        a = self._acceleration(actions, boxes.new_empty(0, dtype=torch.float64))[None]
+        j = torch.arange(segments + 1, dtype=torch.float64, device=boxes.device)[:, None]
+        t0, t1 = j[:-1] / m, j[1:] / m
+        exact = _exact_inputs(boxes, actions, (2 * m * m, 2 * m * segments, m),
+                              self._acceleration_bits() + (segments * segments).bit_length())
+        hull = []
+        for corner, upward in ((boxes[:, 0].double()[None], False), (boxes[:, 1].double()[None], True)):
+            pick = torch.maximum if upward else torch.minimum
+            p, v = corner[..., 0], corner[..., 1]
+            position = _rounded((2 * m * m * p, 2 * m * j * v, a * j * j), 2 * m * m, boxes.dtype,
+                                upward=upward, exact=exact)
+            position = pick(position[:-1], position[1:])
+            # The stationary point, where inside the segment (generously: an
+            # extra candidate only widens the bound).
+            nonzero = a != 0
+            safe = torch.where(nonzero, a, torch.ones_like(a))
+            stationary = -v / safe
+            tolerance = 4 * EPS * (stationary.abs() + t1)
+            inside = nonzero & (stationary >= t0 - tolerance) & (stationary <= t1 + tolerance)
+            drop = v.square() / (2 * safe)
+            extreme = _padded(p - drop, 4 * EPS * (p.abs() + drop.abs()), boxes.dtype, upward=upward)
+            position = torch.where(inside, pick(position, extreme), position)
+            velocity = _rounded((m * v, a * j), m, boxes.dtype, upward=upward, exact=exact)
+            hull.append(torch.stack((position, pick(velocity[:-1], velocity[1:])), -1))
+        return torch.stack(hull, 2)
+
+    def _acceleration_bits(self):
+        """Significand bits of ``a = u * scale`` for float32 ``u``."""
+        return 24 + max(_significand_bits(self.config.max_acceleration),
+                        _significand_bits(self.config.max_braking_acceleration))
 
     # ------------------------------------------------------------ rollouts
 
@@ -190,6 +232,10 @@ class ACC(System):
         return rng.uniform(self._lower[index], self._upper[index]).astype(np.float32)
 
 
+# Relative margin for the float64 round-off of the few operations in a spec check.
+ROUNDING = 16 * torch.finfo(torch.float64).eps
+
+
 @dataclass(frozen=True, eq=False)
 class ACCSpec(SafetySpec):
     """Collision avoidance (``p <= 0`` unsafe) or the braking invariant.
@@ -213,29 +259,76 @@ class ACCSpec(SafetySpec):
         return cls(**cls.common_fields(data, initial_boxes, goal_boxes), unsafe=data.get("unsafe", "collision"),
                    braking_acceleration=system.config.max_braking_acceleration)
 
-    def _unsafe_corner(self, corner):
+    def _unsafe_corner(self, corner, margin):
+        """``margin`` moves the invariant's bound by its float64 round-off (+1 towards "unsafe", -1 away)."""
+        corner = corner.double()
         if self.unsafe == "collision":
             return corner[:, 0] <= 0.0
         closing = torch.clamp(-corner[:, 1], min=0.0)
-        return corner[:, 0] <= closing.square() / (2.0 * self.braking_acceleration)
+        bound = closing.square() / (2.0 * self.braking_acceleration)
+        return corner[:, 0] <= bound * (1 + margin * ROUNDING)
 
     def intersects_unsafe(self, boxes):
         """Decided at the lower corner: minimum position, fastest closing."""
-        return self._unsafe_corner(boxes[:, 0])
+        return self._unsafe_corner(boxes[:, 0], 1)
 
     def inside_unsafe(self, boxes):
         """Decided at the upper corner: maximum position, slowest closing."""
-        return self._unsafe_corner(boxes[:, 1])
+        return self._unsafe_corner(boxes[:, 1], -1)
 
 
-def _quadratic_extreme(position, velocity, acceleration, t0, t1, *, minimum):
-    """Exact minimum (or maximum) of ``p + v t + a t^2 / 2`` over ``[t0, t1]``."""
-    def at(t):
-        return position + velocity * t + 0.5 * acceleration * t.square()
+EPS = torch.finfo(torch.float64).eps
 
-    pick = torch.minimum if minimum else torch.maximum
-    extreme = pick(at(t0), at(t1))
-    nonzero = acceleration.abs() > torch.finfo(acceleration.dtype).eps
-    stationary = -velocity / torch.where(nonzero, acceleration, torch.ones_like(acceleration))
-    inside = nonzero & (stationary >= t0) & (stationary <= t1)
-    return torch.where(inside, pick(extreme, at(stationary)), extreme)
+
+def _rounded(terms, denominator, dtype, *, upward, exact):
+    """``sum(terms) / denominator`` rounded to ``dtype`` towards +inf (``upward``) or -inf.
+
+    ``terms`` are float64; with ``exact`` they hold their values exactly
+    (products of float32 values and small integers). Where their float64 sum
+    is exact as well (checked with TwoSum) the result is the exact directed
+    rounding, so a bound that lands on a float32 number, such as a cell
+    threshold, stays on it. Elsewhere the float64 quotient is padded by its
+    round-off and rounded outward.
+    """
+    total = terms[0]
+    exact_sum = torch.full(total.shape, exact, dtype=torch.bool, device=total.device)
+    for term in terms[1:]:
+        # https://en.wikipedia.org/wiki/2Sum
+        total, error = _two_sum(total, term)
+        exact_sum = exact_sum & (error == 0)
+    quotient = total / denominator
+    nearest = quotient.to(dtype)
+    scaled = nearest.double() * denominator      # exact: float32 times a small integer
+    beyond = scaled < total if upward else scaled > total
+    limit = torch.full_like(nearest, torch.inf if upward else -torch.inf)
+    directed = torch.where(beyond, torch.nextafter(nearest, limit), nearest)
+    # when total is not exact. i.e. exact sum is false
+    magnitude = sum(term.abs() for term in terms) / denominator
+    # maximum bound on the roudings happening due to the sums.
+    padded = _padded(quotient, 4 * EPS * (magnitude + quotient.abs()), dtype, upward=upward)
+    return torch.where(exact_sum, directed, padded)
+
+
+def _padded(value, pad, dtype, *, upward):
+    """``value`` moved by ``pad`` and one more step of ``dtype`` towards +inf (``upward``) or -inf."""
+    moved = (value + pad if upward else value - pad).to(dtype)
+    return torch.nextafter(moved, torch.full_like(moved, torch.inf if upward else -torch.inf))
+
+# never use torch compile with this
+def _two_sum(x, y):
+    """``x + y`` and its rounding error (Knuth's TwoSum)."""
+    total = x + y
+    back = total - x
+    return total, (x - (total - back)) + (y - back)
+
+
+def _exact_inputs(boxes, actions, multipliers, acceleration_bits):
+    """Whether the float64 terms are exact: float32 states and actions, and
+    products within 53 significand bits."""
+    return (boxes.dtype == torch.float32 and actions.dtype == torch.float32 and acceleration_bits <= 53
+            and all(24 + int(c).bit_length() <= 53 for c in multipliers))
+
+
+def _significand_bits(value):
+    value = int(value)
+    return (value // (value & -value)).bit_length() if value else 0

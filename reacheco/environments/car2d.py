@@ -19,7 +19,7 @@ import gymnasium as gym
 import numpy as np
 import torch
 
-from reacheco.environments.base import System
+from reacheco.environments.base import System, outward
 from reacheco.spec import SafetySpec
 
 # The "wall" course: the lower first-row obstacle, the central block extended
@@ -116,21 +116,25 @@ class Car2D(System):
 
     @torch.no_grad()
     def post(self, boxes, actions):
-        acceleration, turn_rate = self._controls(actions, boxes)
-        return _bounds_at_time(boxes, acceleration, turn_rate, self.config.dt)
+        """Computed in float64 and rounded outward to the dtype of ``boxes``."""
+        exact = boxes.double()
+        acceleration, turn_rate = self._controls(actions, exact)
+        return outward(_bounds_at_time(exact, acceleration, turn_rate, self.config.dt), boxes.dtype)
 
     @torch.no_grad()
     def tube(self, boxes, actions, segments):
         """Per segment ``[t0, t1]``: the flow box at ``t0`` widened in position by
-        the largest distance the car can travel during the segment."""
+        the largest distance the car can travel during the segment. Computed in
+        float64 and rounded outward to the dtype of ``boxes``."""
         segments = int(segments)
         if segments < 1:
             raise ValueError("segments must be positive")
-        acceleration, turn_rate = self._controls(actions, boxes)
-        times = torch.linspace(0.0, self.config.dt, steps=segments + 1, dtype=boxes.dtype, device=boxes.device)
+        exact = boxes.double()
+        acceleration, turn_rate = self._controls(actions, exact)
+        times = torch.linspace(0.0, self.config.dt, steps=segments + 1, dtype=exact.dtype, device=exact.device)
         count = len(boxes)
         # Rows are segment-major: row s * count + i is box i in segment s.
-        tiled = boxes.repeat(segments, 1, 1)
+        tiled = exact.repeat(segments, 1, 1)
         acceleration, turn_rate = acceleration.repeat(segments), turn_rate.repeat(segments)
         starts, ends = times[:-1].repeat_interleave(count), times[1:].repeat_interleave(count)
         at_start = _bounds_at_time(tiled, acceleration, turn_rate, starts)
@@ -144,7 +148,7 @@ class Car2D(System):
         upper[:, 2] = tiled[:, 1, 2] + torch.maximum(turn_rate * starts, turn_rate * ends)
         lower[:, 3] = torch.minimum(speeds[0], speeds[2])
         upper[:, 3] = torch.maximum(speeds[1], speeds[3])
-        return torch.stack((lower, upper), dim=1).reshape(segments, count, 2, 4)
+        return outward(torch.stack((lower, upper), dim=1), boxes.dtype).reshape(segments, count, 2, 4)
 
     # ------------------------------------------------------------ rollouts
 
@@ -165,7 +169,7 @@ class Car2D(System):
         action = np.clip(np.asarray(action, dtype=np.float64).reshape(2), -1.0, 1.0)
         before = self._goal_distance()
         box = torch.as_tensor(self.state, dtype=torch.float64)[None, None].expand(1, 2, 4)
-        successor = self.post(box, torch.as_tensor(action)[None])[0, 0]
+        successor = _bounds_at_time(box, *self._controls(torch.as_tensor(action)[None], box), c.dt)[0, 0]
         self.state = successor.to(torch.float32).numpy()
         self.steps += 1
         x, y, heading, speed = successor.tolist()
@@ -231,7 +235,8 @@ class Car2DSpec(SafetySpec):
         return self._unsafe(boxes, entire=True)
 
     def _unsafe(self, boxes, *, entire):
-        # For containment even the best corner must violate a limit.
+        # In float64, where the limits are exact. For containment even the best corner must violate a limit.
+        boxes = boxes.double()
         lower = boxes[:, 1 if entire else 0]
         upper = boxes[:, 0 if entire else 1]
         unsafe = (lower[:, 2] < -self.heading_limit) | (upper[:, 2] > self.heading_limit)

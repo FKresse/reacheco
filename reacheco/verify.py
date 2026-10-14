@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 
 import torch
 
+from reacheco.boxes import convert
 from reacheco.reach import detect_fixed_point, reach_step
 
 
@@ -43,7 +44,7 @@ def verify(problem, policy, meets_losing=None, *, merge=True, merge_disabled=(),
             return problem.spec.intersects_unsafe(boxes)
     merge_disabled_at = merge_disabled_at or {}
     if frontiers is None:
-        frontiers, records = [problem.spec.initial_boxes.to(torch.float32).cpu()], []
+        frontiers, records = [convert(problem.spec.initial_boxes, torch.float32, outward=True)], []
     frontiers, records = list(frontiers), list(records)
     if len(frontiers) != len(records) + 1:
         raise ValueError("a pass resumes from frontiers X_0 .. X_k and the k records between them")
