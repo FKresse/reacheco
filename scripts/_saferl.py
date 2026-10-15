@@ -32,9 +32,12 @@ def env_config():
     from saferl.environment.tasks.processor.observation import AttributeObservationProcessor
     from saferl.environment.tasks.processor.reward import (
         DistanceExponentialChangeRewardProcessor, ProportionalRewardProcessor)
-
+    # we inject states not here, so we have more control over the initalization.
     at_rest = {"initializer": RandBoundsInitializer, "x": 0, "x_dot": 0, "y": 0, "y_dot": 0}
+    # uses tnah post-processing, we have this in the DWCs output post-processing.
     thrust = [{"name": name, "space": "continuous", "bounds": [-1, 1]} for name in ("thrust_x", "thrust_y")]
+    # modified from normal, typically has 100 as obs norm for x and y and 0.5 for x_dot and y_dot, we set all to 1
+    # as we handle scaling in the dwc.
     observe = [{"name": f"obs_{attr}", "class": AttributeObservationProcessor,
                 "config": {"target": "deputy", "attr": attr, "observation_space_shape": 1, "normalization": 1}}
                for attr in ("x", "y", "x_dot", "y_dot")]
@@ -46,6 +49,7 @@ def env_config():
             {"name": "deputy", "class": CWHSpacecraft2d,
              "config": {"integration_method": "RK45", "controller": {"class": AgentController, "actuators": thrust},
                         "init": at_rest}},
+            # radius is originially 0.5, we set it to 0.35 as in Mandal et. al. (2024)
             {"name": "docking_region", "class": RelativeCircle,
              "config": {"ref": "chief", "x_offset": 0, "y_offset": 0, "radius": 0.35,
                         "init": {"initializer": RandBoundsInitializer}}},
@@ -86,6 +90,7 @@ def env_config():
                         "reward": {"crash": -1, "distance": -1, "timeout": -1,
                                    "reward_lower_bound_max_vel_constraint": 0}}},
             {"name": "success_reward", "class": SuccessRewardProcessor,
+             # orignial config has 2000, 
              "config": {"reward": 1, "success_status": "success", "timeout": 5000}},
         ],
         "verbose": False,

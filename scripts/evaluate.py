@@ -119,6 +119,9 @@ def docking_episodes(kind, path, episodes, seed):
             state, reward, done, info = env.step(act(state))
             record["reward"] += reward
             record["steps"] += 1
+            # our spec is not 1:1 related to the SafeRL status/reward
+            # also note that there MAY be spurious counterexamples, as we verify with exact arithmetic
+            # and the SafeRL environment uses float32 and RK45 integration and not the exact linearized dynamics
             record["unsafe"] |= bool(spec.inside_unsafe(torch.as_tensor(state, dtype=torch.float64).expand(1, 2, 4)))
             record["saferl_unsafe"] |= bool(info.get("status", {}).get("max_vel_violation", -np.inf) > 0)
             if done:
