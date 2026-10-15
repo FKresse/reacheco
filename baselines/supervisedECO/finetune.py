@@ -10,9 +10,9 @@ Run from the repository root::
 2. Run bounded reachability (``--horizon`` steps, merging as in ReachECO) from
    ``X_0``, removing failing boxes from the frontier. For every failure, the
    failing boxes' parents are replayed without merging; each source box whose
-   successor lies entirely in the unsafe set (and which is not unsafe itself)
-   adds its cell's upper corner with target ``--target`` (1.05, beyond full
-   braking: the regression is unclipped) to the repair data.
+   transition still fails (its successor meets the unsafe set or its tube is
+   not certified) adds its cell's upper corner with target ``--target`` (1.05,
+   beyond full braking: the regression is unclipped) to the repair data.
 3. Train 1000 steps (batch 256, half from each dataset, Adam 3e-4), export the
    hard controller, and repeat from 2 until a clean pass or ``--rounds``.
 4. Verify the final controller with ReachECO's forward pass on the full
@@ -110,7 +110,7 @@ def explore(policy, problem, horizon, target):
             posts, local = reach_step(boxes, policy, problem, meets, merge=False, lookahead=False)
             active, _, _, _ = cut_goal(boxes, goals, ~spec.intersects_unsafe(boxes))
             sources = cell_pieces(active, policy)[0][local.piece_sources.to(boxes.device)]
-            selected = spec.inside_unsafe(posts) & ~spec.intersects_unsafe(sources)
+            selected = local.failing.to(posts.device)
             points.append(sources[selected][:, 1].cpu())
         current = successors[~failing.to(successors.device)]
         steps = step
@@ -149,7 +149,7 @@ def finetune(arguments):
     started = perf_counter()
     problem = load_problem(arguments.problem)
     model = load(ROOT / f"checkpoints/acc/dwc_b81_seed{arguments.seed}.pt",
-                 ROOT / f"baselines/supervisedECO/checkpoints/dwc_b81_seed{arguments.seed}.pt")
+                 ROOT / f"checkpoints/acc/training/dwc_b81_seed{arguments.seed}.pt")
     model.eval()
     original = policy = model.to_policy()
     optimizer = torch.optim.Adam(model.net.parameters(), lr=arguments.learning_rate)

@@ -1,8 +1,9 @@
 """The trainable DWC behind a hard ACC controller, for supervised fine-tuning.
 
-The thermometer thresholds come from the hard controller (``checkpoints/``),
-the LUT network from its training checkpoint (``checkpoints/`` here, converted
-by ``ReachECO-dev/tools/convert_training_checkpoint.py``). Training uses
+The thermometer thresholds come from the hard controller
+(``checkpoints/acc/dwc_b81_seed<s>.pt``), the LUT network from its training
+checkpoint (``checkpoints/acc/training/dwc_b81_seed<s>.pt``, converted by
+``ReachECO-dev/tools/convert_training_checkpoint.py``). Training uses
 ``torch_dwn``'s LUT layers (EFD backward, CUDA only); ``to_policy`` exports
 the hard controller as a ``reacheco.policy.DWCPolicy``.
 """
