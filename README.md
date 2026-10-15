@@ -122,8 +122,15 @@ Both have a `report` command like the scripts above.
 The controllers are [DWCs](https://github.com/FKresse/differentiable_weightless_controllers),
 and `circuit/` reuses their Verilog. It compiles each patch into a separate block
 behind the controller and synthesizes both with Vivado (tested with 2022.2,
-xc7a100t, 100 MHz):
+xc7a100t, 100 MHz).
 
+For one folder:
+```bash
+export VIVADO_SETTINGS=/nfs/scistore16/tomgrp/fkresse/tools/Xilinx/Vivado/2022.2/settings64.sh
+python -m circuit.measure results/example --synthesize
+```
+
+For all benchmarks:
 ```bash
 export VIVADO_SETTINGS=/path/to/Xilinx/Vivado/2022.2/settings64.sh
 python scripts/synthesize.py                # acc, car2d and docking2d; or name some
