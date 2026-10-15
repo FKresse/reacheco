@@ -11,11 +11,24 @@ per-cell patch that can be synthesized next to the controller on an FPGA.
 
 ## Installation
 
-Python ≥ 3.9 and a CUDA GPU (CPU works, but slowly).
+Python ≥ 3.9 and a CUDA GPU (CPU works, but slowly). The paper's runs used Python 3.9
+and torch 2.3.0 with CUDA 11.8; install that torch first:
 
 ```bash
-pip install -e .                  # torch, numpy, gymnasium, ortools
-pip install -e ".[baselines]"     # + torch-dwn, stable-baselines3, matplotlib
+pip install torch==2.3.0+cu118 -f https://download.pytorch.org/whl/torch_stable.html
+pip install -e .                  # numpy, gymnasium, ortools
+```
+
+The baselines also need [torch-dwn](https://github.com/alanbacellar/DWN), whose CUDA
+extension is built from source against that torch (with CUDA 11.8 and gcc 10; newer gcc
+may fail):
+
+```bash
+module load cuda/11.8 gcc/10      # on a cluster; otherwise install them locally
+git clone https://github.com/alanbacellar/DWN
+pip install setuptools wheel
+pip install -v --no-build-isolation ./DWN/
+pip install -e ".[baselines]"     # + stable-baselines3 2.3.2, matplotlib
 ```
 
 ## Layout

@@ -12,8 +12,9 @@ dependencies = ["torch>=2.0", "numpy", "gymnasium", "ortools>=9.8"]
 
 [project.optional-dependencies]
 # baselines/supervisedECO trains with torch_dwn's LUT layers (backward pass needs CUDA);
-# baselines/stlgym fine-tunes with stable-baselines3 (tested 2.3.2) and plots Figure 5.
-baselines = ["torch-dwn>=1.1", "stable-baselines3>=2.3", "matplotlib"]
+# baselines/stlgym fine-tunes with stable-baselines3 and plots Figure 5; pinned, since other
+# versions train different controllers from the same seed.
+baselines = ["torch-dwn>=1.1", "stable-baselines3==2.3.2", "matplotlib"]
 
 [tool.setuptools]
 packages = ["reacheco", "reacheco.environments", "circuit"]
