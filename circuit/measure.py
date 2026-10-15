@@ -19,8 +19,8 @@ from circuit.patch import compile_patch
 from reacheco.policy import DWCPolicy
 
 COLUMNS = ("clusters", "guard_lut6", "encoder_lut6", "adder_lut6", "total_lut6", "memory_bits", "percent", "verified")
-SYNTHESIZED = ("base_lut", "logic_lut", "estimate_lut6", "memory_lut", "memory_estimate_lut6", "patch_ff", "patch_carry",
-               "base_mhz", "patched_mhz")
+SYNTHESIZED = ("base_lut", "logic_lut", "estimate_lut6", "memory_lut", "memory_estimate_lut6", "patch_srl", "patch_ff",
+               "patch_carry", "base_mhz", "patched_mhz")
 
 
 def measure(path, *, verify=True, label=None):
@@ -39,11 +39,12 @@ def row(summary):
 
 
 def synthesized_row(summary):
-    """One row of the synthesis table (``circuit.synthesize`` summary)."""
+    """One row of the synthesis table (``circuit.synthesize`` summary); ``logic_lut`` excludes the
+    pipeline's shift-register LUTs (``patch_srl``)."""
     base, patch, estimate = summary["base"], summary["patch"], summary["estimate"]
-    return [int(base["lut"]), int(summary["logic"]["lut"]), estimate["lut6"], int(summary["memory"]["lut"]),
-            estimate["memory_lut6"], int(patch["ff"]), int(patch["carry"]), round(base["fmax_mhz"], 1),
-            round(summary["patched"]["fmax_mhz"], 1)]
+    return [int(base["lut"]), int(summary["logic"]["lut_logic"]), estimate["lut6"], int(summary["memory"]["lut"]),
+            estimate["memory_lut6"], int(patch["srl"]), int(patch["ff"]), int(patch["carry"]),
+            round(base["fmax_mhz"], 1), round(summary["patched"]["fmax_mhz"], 1)]
 
 
 def main():

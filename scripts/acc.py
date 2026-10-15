@@ -20,7 +20,9 @@ methods of Table 2 run (``PMAX_100``); the others time out there. Runs are
 limited to one hour, as in the paper. ``tables`` reads the reports: Table 1 (runtime at
 Pmax 30), Table 2 (Pmax 100: certified seeds, runtime, action change), the
 game depths of Figure 6 (Pmax 30) and an overview of all runs. Patch sizes
-(LUT6, ``circuit``) are cached in each run's ``patch_circuit.json``.
+(LUT6, ``circuit``) are cached in each run's ``patch_circuit.json``; the
+synthesized size is shown where ``python -m circuit.measure <runs> --synthesize``
+was run (``synthesis/synthesis.json``).
 """
 from __future__ import annotations
 
@@ -31,7 +33,7 @@ from pathlib import Path
 
 import torch
 
-from _runs import REPAIR, markdown, mean_std, patch_lut6, report, run_jobs
+from _runs import REPAIR, markdown, mean_std, patch_lut6, report, run_jobs, synthesized_patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -72,6 +74,12 @@ def jobs(results, methods, pmaxes, seeds):
 
 
 @torch.no_grad()
+def closing_box(pmax, *, braking=100.0, samples=100_000, seed=0):
+    """``samples`` uniform states of the closing box ``0 <= p <= Pmax, -sqrt(2 B Pmax) <= v <= 0`` (fixed seed)."""
+    generator = torch.Generator().manual_seed(seed)
+    return torch.rand((samples, 2), generator=generator) * torch.tensor([pmax, -math.sqrt(2.0 * braking * pmax)])
+
+
 def action_change(original, repaired, pmax, *, braking=100.0, samples=100_000, seed=0):
     """Change [%] and mean |delta| of the action on the closing box ``0 <= p <= Pmax, -sqrt(2 B Pmax) <= v < 0``.
 
@@ -80,10 +88,7 @@ def action_change(original, repaired, pmax, *, braking=100.0, samples=100_000, s
     
     The reported results in the paper for DWC are not monte carlo but exact.
     """
-    generator = torch.Generator().manual_seed(seed)
-    speed = math.sqrt(2.0 * braking * pmax)
-    states = torch.rand((samples, 2), generator=generator) * torch.tensor([pmax, -speed])
-    states = states.to(original.device)
+    states = closing_box(pmax, braking=braking, samples=samples, seed=seed).to(original.device)
 
     def act(policy):
         return policy.decode(policy.cell_values(policy.cell_ids(states)))
@@ -113,7 +118,7 @@ def tables(results, seeds):
 
     rows = []
     for method in ("invariant", "full_braking"):
-        changes, deltas, sizes = [], [], []
+        changes, deltas, sizes, logic, memory = [], [], [], [], []
         for seed in seeds:
             run = output(results, method, 100, seed)
             if (report(run) or {}).get("status") != "safe":
@@ -123,10 +128,16 @@ def tables(results, seeds):
             changes.append(change)
             deltas.append(delta)
             sizes.append(patch_lut6(run))
+            synthesized = synthesized_patch(run)
+            if synthesized is not None:
+                logic.append(synthesized[0])
+                memory.append(synthesized[1])
         rows.append((LABELS[method], count(method, 100), mean_std([r["seconds"] for r in certified(method, 100)]),
-                     mean_std(sizes), mean_std(changes, 1), mean_std(deltas, 3)))
+                     mean_std(sizes), mean_std(logic), mean_std(memory), mean_std(changes, 1), mean_std(deltas, 3)))
     sections.append("## Table 2: Pmax = 100\n\n"
-                    + markdown(("Method", "certified", "t [s]", "Param. [LUT6]", "Change [%]", "mean \\|Δ\\|"), rows))
+                    + markdown(("Method", "certified", "t [s]", "Param. [LUT6]", "synth. logic [LUT]",
+                                "synth. memory [LUT]", "Change [%]",
+                                "mean \\|Δ\\|"), rows))
 
     depths = {}
     for method in METHODS:

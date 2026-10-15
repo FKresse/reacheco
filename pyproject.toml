@@ -7,7 +7,16 @@ name = "reacheco"
 version = "0.1.0"
 description = "Verification-guided safety repair of learned controllers"
 requires-python = ">=3.9"
-dependencies = ["torch>=2.0", "numpy", "gymnasium"]
+# Tested with torch 2.3, numpy 1.26, gymnasium 0.29, ortools 9.15 (CP-SAT for Joint).
+dependencies = ["torch>=2.0", "numpy", "gymnasium", "ortools>=9.8"]
+
+[project.optional-dependencies]
+# The supervised fine-tuning baseline (baselines/supervisedECO) trains with torch_dwn's
+# LUT layers, whose backward pass needs CUDA.
+baselines = ["torch-dwn>=1.1"]
 
 [tool.setuptools]
-packages = ["reacheco", "reacheco.environments"]
+packages = ["reacheco", "reacheco.environments", "circuit"]
+
+[tool.setuptools.package-data]
+circuit = ["dwc_hdl/*.sv", "dwc_hdl/LICENSE", "dwc_hdl/README.md"]

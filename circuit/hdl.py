@@ -1,23 +1,28 @@
 """Verilog of a DWC controller and its repair patch, for simulation and synthesis (``synthesize.py``).
 
-The controller follows the DWC hardware of Kresse & Lampert (2026b),
-``dwn_top_ooc.sv``: registered inputs (thermometer bits, or signed observations
-through threshold comparators, ``encoder``), one LUT primitive per gate (its
-truth table as ``INIT``), a popcount per action (``dwn_group_sum``) and a
-registered output, with the same ``PIPE_STAGES`` pipeline (``latency``) and one
-more register on the popcounts (``pop_r``), so the patch's adder has a stage of
-its own. The
-patch (Section 2.3, ``patch.py``) reads the same thermometer bits: interval
-guards, one AND per cluster, the address encoder, the correction memory and a
-signed adder per action, written behaviourally so synthesis can pack them, and
-pipelined to the controller's latency; it is a separate block
-(``keep_hierarchy``), so its utilization is its cost.
+The controller is the DWC hardware of Kresse & Lampert (2026b), unchanged:
+the modules in ``dwc_hdl/`` (copied from the DWC repository, see its README)
+with the two packages that hold a controller's network, written here from the
+``DWCPolicy`` in the DWC exporter's format (``core_package``,
+``threshold_package``). ``top`` wraps the controller core (``dwc_core``, the
+``PIPE_STAGES`` pipeline of ``dwn_top_ooc.sv``) in ReachECO's top: registered
+inputs (signed observations through ``thermo_encode_thresholded``, or
+thermometer bits for the simulation check), one more register on the
+popcounts (``pop_r``) and the output register.
+
+The patch (Section 2.3, ``patch.py``) is ReachECO's own block
+(``keep_hierarchy``): interval guards over the thermometer bits, one AND per
+cluster, the address encoder, the correction memory (a block of its own,
+``patch_memory``) and a signed adder per action, written behaviourally and
+pipelined to the controller's latency, so its adder has a stage of its own.
 
 Ports of ``top``: ``clk``, ``rstn``, the inputs and ``out``, action ``a`` at
 ``out[a*W +: W]``: the popcount (``W`` = its width) without a patch, the
 corrected value in two's complement (``W`` = the adder width) with one.
 """
 from __future__ import annotations
+
+from pathlib import Path
 
 import torch
 
@@ -32,7 +37,9 @@ def _popcount_width(policy):
     return cost.unsigned_width(policy.output_count)
 
 
-CHUNK = 128      # dwn_group_sum's CHUNK_SIZE
+DWC_HDL = Path(__file__).resolve().parent / "dwc_hdl"
+DWC_CORE = ("mapping_layer.sv", "dwn_lut_layer.sv", "dwn_group_sum_pipelined.sv", "dwc_core.sv")
+DWC_ENCODER = "thermo_encode_thresholded.sv"
 
 
 def default_stages(policy):
@@ -56,53 +63,66 @@ def _register(name, width, value, reset=True):
     return [f"  reg [{width - 1}:0] {name};", f"  always @(posedge clk) {name} <= {value};"]
 
 
-def controller(policy, stages) -> str:
-    """Module ``dwc``: ``bits`` to the popcounts ``pop`` (``P`` bits per action), ``stages`` as ``PIPE_STAGES``."""
+def _layout(policy):
+    """Per dimension: thermometer bits and their offset in ReachECO's code; the DWC's uniform ``BITS_PER_OBS``."""
     code = grid_code(policy)
-    width, groups = _popcount_width(policy), policy.output_count
-    lines = [f"module dwc(input clk, input rstn, input [{code.input_size - 1}:0] bits, "
-             f"output [{policy.action_dim * width - 1}:0] pop);"]
-    source = "bits"
+    return [int(b) for b in code.bits], code.offsets.tolist(), max(int(b) for b in code.bits)
+
+
+def core_package(policy, word) -> str:
+    """``core_pkg.svh`` of the DWC exporter (``export_to_verilog``) for the policy's network.
+
+    Dimensions with fewer thresholds than ``BITS_PER_OBS`` are padded with
+    never-true thresholds (``threshold_package``); the first layer's mapping
+    addresses the padded thermometer bus.
+    """
+    bits, offsets, width = _layout(policy)
+    padded = [d * width + j for d, b in enumerate(bits) for j in range(b)]
+    (first, last) = policy.mappings
+    fan_in = first.shape[1]
+    lines = ["`ifndef CORE_PKG_SVH", "`define CORE_PKG_SVH\n", "`timescale 1ns/1ps", "package core_pkg;\n",
+             f"  parameter int OBS = {len(bits)};", f"  parameter int LUTS       = {len(first)};",
+             f"  parameter int INPUTS_LUT = {fan_in};\n", f"  parameter int BITS_PER_OBS = {width};",
+             f"  parameter int RAW_OBS_BIT_WIDTH = {word or 12};", "  parameter int N_BITS = INPUTS_LUT * LUTS;",
+             f"  parameter int ACTIONS = {policy.action_dim};", f"  parameter int LAST_LUTS = {len(last)};",
+             "  parameter int ACTION_BITWIDTH = $clog2(LAST_LUTS/ACTIONS+1); // bitwidth of action outputs",
+             "  parameter int ENCODE_OBS_BIT_WIDTH = $clog2(BITS_PER_OBS+1); // bitwidth for encoding observation inputs"]
     for layer, (mapping, table) in enumerate(zip(policy.mappings, policy.luts)):
-        mapping, table = mapping.cpu(), table.cpu()
-        fan_in, gates = mapping.shape[1], len(mapping)
-        lines.append(f"  wire [{gates - 1}:0] l{layer};")
-        for gate, (inputs, truth) in enumerate(zip(mapping.tolist(), table.tolist())):
-            selected = [f"{source}[{index}]" for index in inputs]
-            if stages > 2:      # luts_mapped_to_layer<l>_r
-                lines += _register(f"m{layer}_{gate}", fan_in, "{" + ", ".join(reversed(selected)) + "}")
-                selected = [f"m{layer}_{gate}[{pin}]" for pin in range(fan_in)]
-            init = sum(1 << address for address, value in enumerate(truth) if value)
-            pins = ", ".join(f".I{pin}({signal})" for pin, signal in enumerate(selected))
-            lines.append(f"  LUT{fan_in} #(.INIT({1 << fan_in}'h{init:0{(1 << fan_in) // 4}x})) "
-                         f"g{layer}_{gate} (.O(l{layer}[{gate}]), {pins});")
-        source = f"l{layer}"
-        if stages >= layer + 1:     # internal_bits_layer0_r, output_bits_r
-            lines += _register(f"r{layer}", gates, source)
-            source = f"r{layer}"
-    sums = stages - 2 if stages > 2 else 0
-    lines += [f"  function [{width - 1}:0] popcount(input [{groups - 1}:0] v);",
-              "    integer i;",
-              f"    begin popcount = 0; for (i = 0; i < {groups}; i = i + 1) popcount = popcount + v[i]; end",
-              "  endfunction"]
-    for action in range(policy.action_dim):
-        bits = f"{source}[{action * groups} +: {groups}]"
-        if not sums:
-            lines.append(f"  assign pop[{action * width} +: {width}] = popcount({bits});")
-            continue
-        # dwn_group_sum: registered popcounts of 128-bit chunks, their sum, optionally registered.
-        chunks = [(low, min(CHUNK, groups - low)) for low in range(0, groups, CHUNK)]
-        partial = cost.unsigned_width(CHUNK)
-        for index, (low, size) in enumerate(chunks):
-            lines += _register(f"p{action}_{index}", partial,
-                               " + ".join(f"{source}[{action * groups + low + b}]" for b in range(size)), reset=False)
-        total = " + ".join(f"p{action}_{index}" for index in range(len(chunks)))
-        if sums >= 2:
-            lines += _register(f"s{action}", width, total, reset=False)
-            total = f"s{action}"
-        lines.append(f"  assign pop[{action * width} +: {width}] = {total};")
-    lines.append("endmodule")
+        size = "LAST_LUTS" if layer == len(policy.mappings) - 1 else "LUTS"
+        rows = mapping.cpu().tolist()
+        if layer == 0:
+            rows = [[padded[i] for i in row] for row in rows]
+        lines += ["  // Mapping array", f"  parameter int unsigned MAPPING_{layer} [0:{size}* INPUTS_LUT-1] = '{{"]
+        lines += [f"    {', '.join(map(str, row))}{',' if gate < len(rows) - 1 else ''}   // LUT {gate}"
+                  for gate, row in enumerate(rows)]
+        lines += ["  };", f"  parameter logic [0:{size}-1][0:(1<<INPUTS_LUT)-1] LUT_INIT_{layer} = '{{"]
+        truth = table.cpu().int().tolist()
+        bit = "1'b{}".format
+        lines += ["    '{" + ", ".join(bit(b) for b in reversed(row)) + "}" + ("," if gate < len(truth) - 1 else "")
+                  + f"   // LUT {gate}" for gate, row in enumerate(truth)]
+        lines += ["  };", "\n"]
+    lines.append("\nendpackage\n`endif\n")
     return "\n".join(lines)
+
+
+def threshold_package(policy, word) -> str:
+    """``threshold_pkg.svh`` of the DWC exporter (``export_thresholds_to_svh``): ``word``-bit
+    thresholds (``quantized_thresholds``), padded rows never true (the maximum)."""
+    bits, _, width = _layout(policy)
+    top_value = (1 << (word - 1)) - 1
+    rows = [row + [top_value] * (width - len(row)) for row in quantized_thresholds(policy, word)]
+    literal = lambda v: f"-{word}'sd{-v}" if v < 0 else f"{word}'sd{v}"
+    lines = ["package threshold_pkg;", "", f"  localparam int OBS = {len(rows)};",
+             f"  localparam int NUM_THRESHOLDS = {width};", f"  localparam int THRESH_WIDTH = {word};", "",
+             "  localparam logic signed [THRESH_WIDTH-1:0] NORMALIZATION_THRESHOLDS [0:OBS-1][0:NUM_THRESHOLDS-1] = '{"]
+    lines += [f"    '{{{', '.join(map(literal, row))}}}{',' if d < len(rows) - 1 else ''}" for d, row in enumerate(rows)]
+    lines += ["  };", "", "endpackage : threshold_pkg", ""]
+    return "\n".join(lines)
+
+
+def sources(word) -> list:
+    """The DWC modules a design needs, in compile order after the packages."""
+    return [DWC_HDL / name for name in ((DWC_ENCODER,) if word else ()) + DWC_CORE]
 
 
 def patch_module(policy, patch, delay) -> str:
@@ -119,6 +139,7 @@ def patch_module(policy, patch, delay) -> str:
     lines = [f"module patch(input clk, input rstn, input [{code.input_size - 1}:0] bits, "
              f"input [{policy.action_dim * width - 1}:0] pop, output [{policy.action_dim * out - 1}:0] value);"]
     guards = {}
+    # ENCODING
     for dim in range(code.dims):
         for lower, upper in torch.unique(torch.stack((patch.lower[:, dim], patch.upper[:, dim]), 1), dim=0).tolist():
             low, high = _guard_bits(code, dim, lower, upper)
@@ -128,15 +149,18 @@ def patch_module(policy, patch, delay) -> str:
             guards[(dim, lower, upper)] = name
             lines.append(f"  wire {name} = {' & '.join(terms) or ONE};")
     lines.append(f"  wire [{clusters - 1}:0] hit;")
+    # compute the AND reduction
     for index, (lower, upper) in enumerate(zip(patch.lower.tolist(), patch.upper.tolist())):
         terms = [guards[(dim, lo, hi)] for dim, (lo, hi) in enumerate(zip(lower, upper))]
         lines.append(f"  assign hit[{index}] = {' & '.join(terms)};")
     hits = "hit"
+    # register
     if delay >= 1:
         lines += _register("hit_r", clusters, "hit")
         hits = "hit_r"
     address = max(1, clusters.bit_length())
     lines.append(f"  wire [{address - 1}:0] address;")
+    # COMPUTE OR Adress i.e. where the bit is high of the address
     for bit in range(address):
         terms = [f"{hits}[{c}]" for c in range(clusters) if ((c + 1) >> bit) & 1]
         lines.append(f"  assign address[{bit}] = {' | '.join(terms) or ZERO};")
@@ -145,18 +169,21 @@ def patch_module(policy, patch, delay) -> str:
         lines += _register("address_r", address, "address")
         selected = "address_r"
     # The correction memory is a block of its own, so its utilization is reported separately.
+    # width that holds each delta change for each action
     stored = [cost.minimum_signed_width(row) for row in words.tolist()]
     offsets = [sum(stored[:action]) for action in range(len(stored))]
     lines += [f"  wire [{sum(stored) - 1}:0] words;",
               f'  (* keep_hierarchy = "yes" *) patch_memory u_memory(.address({selected}), .words(words));']
     for action, row in enumerate(words.tolist()):
         lines.append(f"  wire signed [{stored[action] - 1}:0] word{action} = words[{offsets[action]} +: {stored[action]}];")
+        # delay chain
         word = f"word{action}"
         for step in range(max(0, delay - 2)):
             lines += [f"  reg signed [{stored[action] - 1}:0] {word}_{step};",
                       f"  always @(posedge clk or negedge rstn) if (!rstn) {word}_{step} <= 0; "
                       f"else {word}_{step} <= {word};"]
             word = f"{word}_{step}"
+        # add
         lines += [f"  wire signed [{out - 1}:0] base{action} = {{{{{out - width}{{1'b0}}}}, pop[{action * width} +: {width}]}};",
                   f"  assign value[{action * out} +: {out}] = base{action} + {word};"]
     lines.append("endmodule")
@@ -184,48 +211,57 @@ def quantized_thresholds(policy, word):
     return rows
 
 
-def encoder(policy, word) -> list:
-    """Lines of ``top`` turning the registered inputs ``x`` (``word`` bits per dimension) into ``bits``."""
-    lines, index = [], 0
-    for dim, row in enumerate(quantized_thresholds(policy, word)):
-        for threshold in row:
-            literal = f"-{word}'sd{-threshold}" if threshold < 0 else f"{word}'sd{threshold}"
-            lines.append(f"  assign bits[{index}] = $signed(x[{dim * word} +: {word}]) > {literal};")
-            index += 1
-    return lines
-
-
 def top(policy, patch=None, *, word=None, stages=None) -> tuple:
-    """The design (``top``, ``dwc`` and, with a patch, ``patch``) and the output width per action.
+    """The design's files (``core_pkg.svh``, ``threshold_pkg.svh`` with ``word``, ``design.sv``) and the
+    output width per action; ``sources(word)`` are compiled between the packages and ``design.sv``.
 
     Without ``word`` the inputs are the thermometer bits; with it, signed
-    ``word``-bit observations through comparators (``encoder``). ``stages``
-    is the DWC's ``PIPE_STAGES`` (default: ``default_stages``).
+    ``word``-bit observations through the DWC's comparators. ``stages`` is the
+    DWC's ``PIPE_STAGES`` (default: ``default_stages``).
     """
-    code = grid_code(policy)
     stages = default_stages(policy) if stages is None else stages
-    width = _popcount_width(policy)
-    out = max(cost.adder_widths(policy.output_count, cost.build_words(patch.deltas))) if patch else width
+    bits, offsets, width = _layout(policy)
+    code_bits, pop_width = sum(bits), _popcount_width(policy)
+    out = max(cost.adder_widths(policy.output_count, cost.build_words(patch.deltas))) if patch else pop_width
     total = policy.action_dim * out
+    bus = len(bits) * width
     if word:
-        inputs = len(policy.thresholds) * word
-        front = [f"module top(input clk, input rstn, input [{inputs - 1}:0] x_in, output reg [{total - 1}:0] out);",
-                 *_register("x", inputs, "x_in"), f"  wire [{code.input_size - 1}:0] bits;", *encoder(policy, word)]
+        inputs = len(bits) * word
+        front = [f"module top(input logic clk, input logic rstn, input logic [{inputs - 1}:0] x_in, "
+                 f"output logic [{total - 1}:0] out);",
+                 *_register("x", inputs, "x_in"),
+                 f"  logic signed [0:{word - 1}] quant [0:{len(bits) - 1}];",
+                 *(f"  assign quant[{d}] = x[{d * word} +: {word}];" for d in range(len(bits))),
+                 f"  logic [0:{bus - 1}] thermo_bus;",
+                 f"  thermo_encode_thresholded #(.OBS({len(bits)}), .BITS_PER_OBS({width}), .X({word})) "
+                 "u_enc (.quant_in(quant), .thermo_out(thermo_bus));",
+                 f"  wire [{code_bits - 1}:0] bits;"]
+        front += [f"  assign bits[{offsets[d] + j}] = thermo_bus[{d * width + j}];"
+                  for d, b in enumerate(bits) for j in range(b)]
     else:
-        front = [f"module top(input clk, input rstn, input [{code.input_size - 1}:0] bits_in, "
-                 f"output reg [{total - 1}:0] out);", *_register("bits", code.input_size, "bits_in")]
+        front = [f"module top(input logic clk, input logic rstn, input logic [{code_bits - 1}:0] bits_in, "
+                 f"output logic [{total - 1}:0] out);",
+                 *_register("bits", code_bits, "bits_in"), f"  logic [0:{bus - 1}] thermo_bus;"]
+        front += [f"  assign thermo_bus[{d * width + j}] = " + (f"bits[{offsets[d] + j}];" if j < b else "1'b0;")
+                  for d, b in enumerate(bits) for j in range(width)]
     lines = [*front,
-             f"  wire [{policy.action_dim * width - 1}:0] pop;",
+             f"  logic [0:{pop_width - 1}] group_sum [0:{policy.action_dim - 1}];",
+             f"  dwc_core #(.PIPE_STAGES({stages})) u_dwc (.clk(clk), .rstn(rstn), .thermo_bus(thermo_bus), "
+             ".group_sum_int(group_sum));",
+             f"  wire [{policy.action_dim * pop_width - 1}:0] pop;",
+             *(f"  assign pop[{a * pop_width} +: {pop_width}] = group_sum[{a}];" for a in range(policy.action_dim)),
+             *_register("pop_r", policy.action_dim * pop_width, "pop"),    # output stage: the adder gets its own
              f"  wire [{total - 1}:0] value;",
-             "  dwc u_dwc(.clk(clk), .rstn(rstn), .bits(bits), .pop(pop));",
-             *_register("pop_r", policy.action_dim * width, "pop"),     # output stage: the adder gets its own
              '  (* keep_hierarchy = "yes" *) patch u_patch(.clk(clk), .rstn(rstn), .bits(bits), .pop(pop_r), .value(value));'
              if patch else "  assign value = pop_r;",
              "  always @(posedge clk or negedge rstn) if (!rstn) out <= 0; else out <= value;",
              "endmodule"]
-    modules = [controller(policy, stages)] + ([patch_module(policy, patch, latency(stages) + 1)] if patch else []) \
-        + ["\n".join(lines)]
-    return "`timescale 1ns/1ps\n\n" + "\n\n".join(modules) + "\n", out
+    design = "`timescale 1ns/1ps\n`include \"core_pkg.svh\"\n\n" + \
+        "\n\n".join(([patch_module(policy, patch, latency(stages) + 1)] if patch else []) + ["\n".join(lines)]) + "\n"
+    files = {"core_pkg.svh": core_package(policy, word), "design.sv": design}
+    if word:
+        files["threshold_pkg.svh"] = threshold_package(policy, word)
+    return files, out
 
 
 def testbench(cells, bits, out_width, delay=0) -> str:

@@ -19,10 +19,12 @@ default ``hdl.default_stages``). The patch is a separate block
 (``keep_hierarchy``): ``patch`` is its own utilization, split into its
 correction ``memory`` (a block of its own, ``patch_memory``) and the rest,
 ``logic`` (guards, address encoder, adders, pipeline); ``difference``
-(``patched - base``) is kept for reference. ``estimate`` holds the patch's
+(``patched - base``) is kept for reference. Vivado maps some pipeline delay
+registers to shift-register LUTs: ``logic["lut_logic"]`` (LUT as Logic) excludes
+them, ``logic["srl"]`` counts them. ``estimate`` holds the patch's
 LUT6 estimate without the memory (``patch.compile_patch``, comparable with
-``logic``) and the memory as a ROM in LUTs (``cost.rom_luts``, comparable with
-``memory``).
+``logic["lut_logic"]``) and the memory as a ROM in LUTs (``cost.rom_luts``, comparable with
+``memory``). ``summarize`` recomputes ``synthesis.json`` from the reports.
 """
 from __future__ import annotations
 
@@ -41,11 +43,11 @@ from .patch import cell_clusters, cell_coordinates, compile_patch, grid_code
 PART = "xc7a100tfgg484-1"
 WORD = 12
 SAMPLE = 20_000
-METRICS = {"lut": r"Slice LUTs\*?", "ff": r"Slice Registers", "carry": r"CARRY4", "lutram": r"LUT as Memory",
+METRICS = {"lut": r"Slice LUTs\*?", "lut_logic": r"LUT as Logic", "srl": r"LUT as Shift Register", "ff": r"Slice Registers", "carry": r"CARRY4", "lutram": r"LUT as Memory",
            "muxf7": r"F7 Muxes", "bram": r"Block RAM Tile"}
 
-SCRIPT = """read_verilog design.v
-synth_design -top top -part {part} -mode out_of_context
+SCRIPT = """read_verilog -sv {{{files}}}
+synth_design -top top -part {part} -mode out_of_context -include_dirs [list .]
 create_clock -name clk -period {period} [get_ports clk]
 opt_design
 place_design
@@ -80,10 +82,28 @@ def synthesize(policy, directory, *, part=PART, period=10.0, word=WORD, stages=N
         work = directory / name
         shutil.rmtree(work, ignore_errors=True)     # no leftovers of an earlier run
         work.mkdir(parents=True)
-        design, out = hdl.top(policy, design_patch, word=word, stages=stages)
-        (work / "design.v").write_text(design)
-        simulation = _simulate(work, bits, values.long(), out, hdl.latency(stages) + 1) if check else None
-        summary[name] = {"simulation": simulation, **_implement(work, part, period, design_patch is not None)}
+        files, out = hdl.top(policy, design_patch, word=word, stages=stages)
+        for file, text in files.items():
+            (work / file).write_text(text)
+        order = [f for f in ("core_pkg.svh", "threshold_pkg.svh") if f in files] + \
+            [str(path) for path in hdl.sources(word)] + ["design.sv"]
+        simulation = _simulate(work, order, bits, values.long(), out, hdl.latency(stages) + 1) if check else None
+        summary[name] = {"simulation": simulation, **_implement(work, order, part, period, design_patch is not None)}
+    return _write(directory, summary)
+
+
+def summarize(directory):
+    """Recompute ``<directory>/synthesis.json`` from the Vivado reports of an earlier ``synthesize``; returns it."""
+    directory = Path(directory)
+    summary = json.loads((directory / "synthesis.json").read_text())
+    for name in ("base", "patched"):
+        work = directory / name
+        summary[name].update(_reports(work, (work / "patch_utilization.rpt").exists(), summary["period_ns"]))
+    return _write(directory, summary)
+
+
+def _write(directory, summary):
+    """Add the patch's ``patch``, ``memory``, ``logic`` and ``difference`` and write ``synthesis.json``."""
     zero = {key: 0.0 for key in METRICS}
     summary["patch"] = summary["patched"].get("patch_cells", zero)
     summary["memory"] = summary["patched"].get("memory_cells", zero)
@@ -126,13 +146,13 @@ def _vivado(work, command):
     return completed.stdout
 
 
-def _simulate(work, bits, values, out, delay):
+def _simulate(work, order, bits, values, out, delay):
     """Run the design in ``xsim`` on the given cells; raises on any mismatch."""
     stimulus, expected = hdl.vectors(bits, values, out)
     (work / "stimulus.mem").write_text(stimulus)
     (work / "expected.mem").write_text(expected)
     (work / "tb.v").write_text(hdl.testbench(len(bits), bits.shape[1], out * values.shape[1], delay))
-    log = _vivado(work, 'xvlog design.v tb.v "$XILINX_VIVADO/data/verilog/src/glbl.v" && '
+    log = _vivado(work, f'xvlog -sv -i . {" ".join(order)} tb.v "$XILINX_VIVADO/data/verilog/src/glbl.v" && '
                         "xelab -L unisims_ver tb glbl -s sim && xsim sim -R")
     found = re.search(r"CHECKED (\d+) ERRORS (\d+)", log)
     if not found or int(found.group(2)):
@@ -140,12 +160,18 @@ def _simulate(work, bits, values, out, delay):
     return {"cells": int(found.group(1)), "errors": 0}
 
 
-def _implement(work, part, period, patched):
+def _implement(work, order, part, period, patched):
     """Out-of-context synthesis, placement and routing; utilization and timing."""
     patch_report = ("report_utilization -cells [get_cells u_patch] -file patch_utilization.rpt\n"
                     "report_utilization -cells [get_cells u_patch/u_memory] -file memory_utilization.rpt") if patched else ""
-    (work / "implement.tcl").write_text(SCRIPT.format(part=part, period=period, patch_report=patch_report))
+    (work / "implement.tcl").write_text(SCRIPT.format(files=" ".join(order), part=part, period=period,
+                                                      patch_report=patch_report))
     _vivado(work, "vivado -mode batch -nojournal -log vivado.log -source implement.tcl")
+    return _reports(work, patched, period)
+
+
+def _reports(work, patched, period):
+    """Utilization and timing from the reports ``implement.tcl`` writes."""
     slack = float((work / "slack.txt").read_text())
     result = {**_utilization(work / "utilization.rpt"), "wns_ns": slack, "fmax_mhz": 1000.0 / (period - slack)}
     if patched:

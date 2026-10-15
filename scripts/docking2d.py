@@ -30,7 +30,7 @@ from pathlib import Path
 
 import torch
 
-from _runs import markdown, patch_lut6, report, run_jobs
+from _runs import markdown, patch_lut6, report, run_jobs, synthesized_patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -115,14 +115,17 @@ def report_tables(results, seeds):
     for seed in seeds:
         r = report(results / f"seed{seed}")
         if r is None:
-            rows.append((seed, "–", "–", "–", "–", "–", "–"))
+            rows.append((seed, "–", "–", "–", "–", "–", "–", "–", "–"))
         elif r["status"] == "timeout":
-            rows.append((seed, "timeout", "–", "–", "–", "–", "–"))
+            rows.append((seed, "timeout", "–", "–", "–", "–", "–", "–", "–"))
         else:
             size = patch_lut6(results / f"seed{seed}") if r["status"] == "safe" else "–"
-            rows.append((seed, r["status"], r["passes"], r["repairs"], r["changed_cells"], f"{r['seconds']:.0f}", size))
+            synthesized = synthesized_patch(results / f"seed{seed}") or ("–", "–")
+            rows.append((seed, r["status"], r["passes"], r["repairs"], r["changed_cells"], f"{r['seconds']:.0f}", size,
+                         *synthesized))
     text = ("# Docking2D (box 70..120, four velocity quadrants)\n\n"
-            + markdown(("seed", "status", "passes", "repairs", "changed cells", "t [s]", "patch [LUT6]"), rows) + "\n")
+            + markdown(("seed", "status", "passes", "repairs", "changed cells", "t [s]", "patch [LUT6]",
+                        "synth. logic [LUT]", "synth. memory [LUT]"), rows) + "\n")
     (results / "report.md").write_text(text)
     print(text)
 

@@ -72,6 +72,23 @@ def patch_lut6(output):
     return measure(controller)["total_lut6"]
 
 
+def synthesized_patch(output):
+    """Synthesized patch LUTs of the run (``scripts/synthesize.py``) as ``(logic, memory)``, or ``None``.
+
+    ``logic`` (guards, address encoder, adders; LUT as Logic, without the pipeline's
+    shift-register LUTs) compares with the LUT6 estimate, ``memory`` is the correction memory's block.
+    """
+    path = Path(output) / "synthesis" / "synthesis.json"
+    if not path.exists():
+        return None
+    summary = json.loads(path.read_text())
+    if "memory" not in summary:
+        raise ValueError(f"{path} predates the separate memory block; rerun scripts/synthesize.py --force")
+    if "lut_logic" not in summary["logic"]:
+        raise ValueError(f"{path} predates the shift-register split; run scripts/synthesize.py --summarize")
+    return int(summary["logic"]["lut_logic"]), int(summary["memory"]["lut"])
+
+
 def mean_std(values, digits=0):
     """``"mean ± std"`` (sample standard deviation), or ``"–"`` without values."""
     if not values:

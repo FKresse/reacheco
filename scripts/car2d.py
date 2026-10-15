@@ -15,7 +15,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from _runs import REPAIR, markdown, patch_lut6, report, run_jobs
+from _runs import REPAIR, markdown, patch_lut6, report, run_jobs, synthesized_patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -40,15 +40,16 @@ def main():
     if result is None:
         sys.exit(f"no report in {output}; run first")
     if result["status"] == "timeout":
-        rows = [("timeout", "–", "–", "–", "–", "–", "–")]
+        rows = [("timeout", "–", "–", "–", "–", "–", "–", "–", "–")]
     else:
         depths = [int(key[8:]) for entry in result["repairs"] for key in entry if key.startswith("horizon_")]
         rows = [(result["status"], f"{result['seconds']:.0f}", len(result["repairs"]),
                  result["overrides"] + result["pruned_cells"], result["overrides"], max(depths, default=0),
-                 patch_lut6(output) if result["status"] == "safe" else "–")]
+                 patch_lut6(output) if result["status"] == "safe" else "–",
+                 *(synthesized_patch(output) or ("–", "–")))]
     text = ("# Car2D (box B)\n\n"
             + markdown(("status", "t [s]", "repairs", "changed cells", "after pruning", "deepest game",
-                        "patch [LUT6]"), rows) + "\n")
+                        "patch [LUT6]", "synth. logic [LUT]", "synth. memory [LUT]"), rows) + "\n")
     (arguments.results / "report.md").write_text(text)
     print(text)
 
