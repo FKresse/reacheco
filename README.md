@@ -93,7 +93,7 @@ pip install --no-deps -e SafeRL     # its requirements.txt pins far more than th
 pip install "ray[rllib]==1.5.2" "gym==0.22.0" "numpy<2" "protobuf<3.21" scipy pyyaml jsonlines
 ```
 
-Note regarding Docking2D: SafeRL uses a slightly stricter safety condition then we (and the AICNNS competition) verify. Because of that, for seed 3, we can observed two unsafe transitions in SafeRL which are not present under our verified and repaired safety specification.
+Note regarding Docking2D: SafeRL uses a slightly stricter safety condition then we (and the AINNCS competition) verify. Because of that, for seed 3, we can observed two unsafe transitions in SafeRL which are not present under our verified and repaired safety specification.
 
 ## Baselines
 
