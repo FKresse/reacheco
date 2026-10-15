@@ -15,7 +15,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from _runs import REPAIR, markdown, patch_lut6, report, run_jobs, synthesized_patch
+from _runs import REPAIR, evaluation, markdown, patch_lut6, report, rollouts, run_jobs, synthesized_patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -50,6 +50,10 @@ def main():
     text = ("# Car2D (box B)\n\n"
             + markdown(("status", "t [s]", "repairs", "changed cells", "after pruning", "deepest game",
                         "patch [LUT6]", "synth. logic [LUT]", "synth. memory [LUT]"), rows) + "\n")
+    rollout = evaluation(output) or {}
+    text += ("\n## Rollouts from X0 (scripts/evaluate.py car2d)\n\n"
+             + markdown(("controller", "reward", "unsafe [%]"),
+                        [(name, *rollouts(rollout.get(name))) for name in ("original", "repaired")]) + "\n")
     (arguments.results / "report.md").write_text(text)
     print(text)
 

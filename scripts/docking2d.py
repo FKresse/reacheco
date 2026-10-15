@@ -30,7 +30,7 @@ from pathlib import Path
 
 import torch
 
-from _runs import markdown, patch_lut6, report, run_jobs, synthesized_patch
+from _runs import evaluation, markdown, patch_lut6, report, rollouts, run_jobs, synthesized_patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -126,6 +126,16 @@ def report_tables(results, seeds):
     text = ("# Docking2D (box 70..120, four velocity quadrants)\n\n"
             + markdown(("seed", "status", "passes", "repairs", "changed cells", "t [s]", "patch [LUT6]",
                         "synth. logic [LUT]", "synth. memory [LUT]"), rows) + "\n")
+    rows = []
+    for seed in seeds:
+        result = evaluation(results / f"seed{seed}") or {}
+        circle, x0 = result.get("circle", {}), result.get("x0", {})
+        safe = [f"{100 - s['unsafe_percent']:.1f}" if s else "–"
+                for s in (circle.get("original"), x0.get("original"), circle.get("repaired"))]
+        rows.append((seed, *safe, rollouts(x0.get("original"), 3)[0], rollouts(x0.get("repaired"), 3)[0]))
+    text += ("\n## Table 3: rollouts in SafeRL (scripts/evaluate.py docking2d)\n\n"
+             + markdown(("seed", "safe [%] X", "safe [%] X0", "safe [%] X after", "reward X0", "reward X0 after"), rows)
+             + "\n")
     (results / "report.md").write_text(text)
     print(text)
 

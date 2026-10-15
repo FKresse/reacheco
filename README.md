@@ -3,6 +3,8 @@
 Code for the paper *Verification-Guided Safety-Repair of Learned Controllers*
 (Fabian Kresse, Sobhan Gharanfoli, Nikolaus Vertovec, Alessandro Abate, Thomas A. Henzinger, Christoph H. Lampert).
 
+ArXiv Link will follow soon.
+
 ReachECO certifies a Differentiable Weightless Controller (DWC) with forward
 reachability and, where it fails, repairs it backward: the fix is an exact
 per-cell patch that can be synthesized next to the controller on an FPGA.
@@ -69,6 +71,29 @@ python scripts/car2d.py report          # -> results/car2d/report.md
 ```
 
 `--gpus`, `--seeds`, `--methods` and `--pmax` select a subset; see `--help`.
+
+### Rollout evaluation
+
+Rolls out the original and the repaired controllers from the same 1,000 starts
+(ACC Table 5, Docking2D Table 3, Car2D); the `report` commands pick the results up.
+
+```bash
+python scripts/evaluate.py acc
+python scripts/evaluate.py car2d
+python scripts/evaluate.py docking2d
+```
+
+Docking2D runs in the [SafeRL](https://github.com/act3-ace/SafeRL) environment
+the controllers were trained in. It needs old versions (ray 1.5.2, gym 0.22,
+Python 3.9), so it is not installed with ReachECO:
+
+```bash
+git clone https://github.com/act3-ace/SafeRL
+pip install --no-deps -e SafeRL     # its requirements.txt pins far more than the environment needs
+pip install "ray[rllib]==1.5.2" "gym==0.22.0" "numpy<2" "protobuf<3.21" scipy pyyaml jsonlines
+```
+
+Note regarding Docking2D: SafeRL uses a slightly stricter safety condition then we (and the AICNNS competition) verify. Because of that, for seed 3, we can observed two unsafe transitions in SafeRL which are not present under our verified and repaired safety specification.
 
 ## Baselines
 

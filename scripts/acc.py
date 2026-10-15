@@ -19,7 +19,8 @@ and writes ``results/acc/<method>/p<Pmax>/seed<s>/``. At Pmax 100 only the
 methods of Table 2 run (``PMAX_100``); the others time out there. Runs are
 limited to one hour, as in the paper. ``report`` reads the reports: Table 1 (runtime at
 Pmax 30), Table 2 (Pmax 100: certified seeds, runtime, action change), the
-game depths of Figure 6 (Pmax 30) and an overview of all runs. Patch sizes
+rollouts of Table 5 (``scripts/evaluate.py acc``), the game depths of Figure 6
+(Pmax 30) and an overview of all runs. Patch sizes
 (LUT6, ``circuit``) are cached in each run's ``patch_circuit.json``; the
 synthesized size is shown where ``python -m circuit.measure <runs> --synthesize``
 was run (``synthesis/synthesis.json``).
@@ -33,7 +34,7 @@ from pathlib import Path
 
 import torch
 
-from _runs import REPAIR, markdown, mean_std, patch_lut6, report, run_jobs, synthesized_patch
+from _runs import REPAIR, evaluation, markdown, mean_std, patch_lut6, report, rollouts, run_jobs, synthesized_patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -138,6 +139,15 @@ def tables(results, seeds):
                     + markdown(("Method", "certified", "t [s]", "Param. [LUT6]", "synth. logic [LUT]",
                                 "synth. memory [LUT]", "Change [%]",
                                 "mean \\|Δ\\|"), rows))
+
+    rows = []
+    for seed in seeds:
+        result = evaluation(output(results, "invariant", 100, seed)) or {}
+        rows.append((seed, *rollouts(result.get("original")), *rollouts(result.get("repaired"))))
+    sections.append("## Table 5: rollouts from X0 (Pmax = 100), before and after the L* repair "
+                    "(scripts/evaluate.py acc)\n\n"
+                    + markdown(("Seed", "reward before", "unsafe [%] before", "reward after", "unsafe [%] after"),
+                               rows))
 
     depths = {}
     for method in METHODS:

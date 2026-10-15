@@ -89,6 +89,19 @@ def synthesized_patch(output):
     return int(summary["logic"]["lut_logic"]), int(summary["memory"]["lut"])
 
 
+def evaluation(output):
+    """The run's rollout evaluation (``scripts/evaluate.py``), or ``None``."""
+    path = Path(output) / "evaluation.json"
+    return json.loads(path.read_text()) if path.exists() else None
+
+
+def rollouts(result, digits=2):
+    """``(reward mean ± std, unsafe [%])`` of one evaluated controller, or dashes."""
+    if result is None:
+        return "–", "–"
+    return f"{result['reward_mean']:.{digits}f} ± {result['reward_std']:.{digits}f}", f"{result['unsafe_percent']:.1f}"
+
+
 def mean_std(values, digits=0):
     """``"mean ± std"`` (sample standard deviation), or ``"–"`` without values."""
     if not values:
