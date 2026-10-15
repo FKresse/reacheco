@@ -46,7 +46,7 @@ results/       everything the scripts write
 
 ## Usage
 
-Repair a single controller:
+Repair a single controller (with losing set learning enabled):
 
 ```bash
 python scripts/repair.py --problem problems/acc/boundary160_collision_30.json \
