@@ -11,9 +11,9 @@ requires-python = ">=3.9"
 dependencies = ["torch>=2.0", "numpy", "gymnasium", "ortools>=9.8"]
 
 [project.optional-dependencies]
-# The supervised fine-tuning baseline (baselines/supervisedECO) trains with torch_dwn's
-# LUT layers, whose backward pass needs CUDA.
-baselines = ["torch-dwn>=1.1"]
+# baselines/supervisedECO trains with torch_dwn's LUT layers (backward pass needs CUDA);
+# baselines/stlgym fine-tunes with stable-baselines3 (tested 2.3.2) and plots Figure 5.
+baselines = ["torch-dwn>=1.1", "stable-baselines3>=2.3", "matplotlib"]
 
 [tool.setuptools]
 packages = ["reacheco", "reacheco.environments", "circuit"]

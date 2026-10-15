@@ -4,7 +4,7 @@ Run from the repository root::
 
     python scripts/acc.py run --gpus 1 2 3                   # all methods, Pmax 10 20 30 (100), seeds 1-5
     python scripts/acc.py run --methods invariant --pmax 30 --seeds 1
-    python scripts/acc.py tables                              # results/acc/tables.md
+    python scripts/acc.py report                              # results/acc/tables.md
 
 Each run repairs ``checkpoints/acc/dwc_b81_seed<s>.pt`` from the boundary-hugging
 initial set cut at ``p <= Pmax`` with one of five methods (the paper's rows):
@@ -17,7 +17,7 @@ initial set cut at ``p <= Pmax`` with one of five methods (the paper's rows):
 
 and writes ``results/acc/<method>/p<Pmax>/seed<s>/``. At Pmax 100 only the
 methods of Table 2 run (``PMAX_100``); the others time out there. Runs are
-limited to one hour, as in the paper. ``tables`` reads the reports: Table 1 (runtime at
+limited to one hour, as in the paper. ``report`` reads the reports: Table 1 (runtime at
 Pmax 30), Table 2 (Pmax 100: certified seeds, runtime, action change), the
 game depths of Figure 6 (Pmax 30) and an overview of all runs. Patch sizes
 (LUT6, ``circuit``) are cached in each run's ``patch_circuit.json``; the
