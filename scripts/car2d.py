@@ -15,7 +15,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from _runs import REPAIR, evaluation, markdown, patch_lut6, report, rollouts, run_jobs, synthesized_patch
+from _runs import REPAIR, evaluation, markdown, report, rollouts, run_jobs, synthesized_patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -45,11 +45,10 @@ def main():
         depths = [int(key[8:]) for entry in result["repairs"] for key in entry if key.startswith("horizon_")]
         rows = [(result["status"], f"{result['seconds']:.0f}", len(result["repairs"]),
                  result["overrides"] + result["pruned_cells"], result["overrides"], max(depths, default=0),
-                 patch_lut6(output) if result["status"] == "safe" else "–",
-                 *(synthesized_patch(output) or ("–", "–")))]
+                 *(synthesized_patch(output) or ("–", "–", "–")))]
     text = ("# Car2D (box B)\n\n"
             + markdown(("status", "t [s]", "repairs", "changed cells", "after pruning", "deepest game",
-                        "patch [LUT6]", "synth. logic [LUT]", "synth. memory [LUT]"), rows) + "\n")
+                        "patch logic [LUT]", "patch memory [LUT]", "patch [LUT]"), rows) + "\n")
     rollout = evaluation(output) or {}
     text += ("\n## Rollouts from X0 (scripts/evaluate.py car2d)\n\n"
              + markdown(("controller", "reward", "unsafe [%]"),

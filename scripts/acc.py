@@ -20,10 +20,8 @@ methods of Table 2 run (``PMAX_100``); the others time out there. Runs are
 limited to one hour, as in the paper. ``report`` reads the reports: Table 1 (runtime at
 Pmax 30), Table 2 (Pmax 100: certified seeds, runtime, action change), the
 rollouts of Table 5 (``scripts/evaluate.py acc``), the game depths of Figure 6
-(Pmax 30) and an overview of all runs. Patch sizes
-(LUT6, ``circuit``) are cached in each run's ``patch_circuit.json``; the
-synthesized size is shown where ``python -m circuit.measure <runs> --synthesize``
-was run (``synthesis/synthesis.json``).
+(Pmax 30) and an overview of all runs. Patch sizes are the synthesized ones
+(``scripts/synthesize.py``, ``synthesis/synthesis.json``), where available.
 """
 from __future__ import annotations
 
@@ -34,7 +32,7 @@ from pathlib import Path
 
 import torch
 
-from _runs import REPAIR, evaluation, markdown, mean_std, patch_lut6, report, rollouts, run_jobs, synthesized_patch
+from _runs import REPAIR, evaluation, markdown, mean_std, report, rollouts, run_jobs, synthesized_patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -119,7 +117,7 @@ def tables(results, seeds):
 
     rows = []
     for method in ("invariant", "full_braking"):
-        changes, deltas, sizes, logic, memory = [], [], [], [], []
+        changes, deltas, sizes = [], [], []
         for seed in seeds:
             run = output(results, method, 100, seed)
             if (report(run) or {}).get("status") != "safe":
@@ -128,16 +126,15 @@ def tables(results, seeds):
             change, delta = action_change(original, DWCPolicy.load(run / "controller.pt"), 100)
             changes.append(change)
             deltas.append(delta)
-            sizes.append(patch_lut6(run))
             synthesized = synthesized_patch(run)
             if synthesized is not None:
-                logic.append(synthesized[0])
-                memory.append(synthesized[1])
+                sizes.append(synthesized)
         rows.append((LABELS[method], count(method, 100), mean_std([r["seconds"] for r in certified(method, 100)]),
-                     mean_std(sizes), mean_std(logic), mean_std(memory), mean_std(changes, 1), mean_std(deltas, 3)))
+                     *(mean_std([size[part] for size in sizes]) for part in range(3)),
+                     mean_std(changes, 1), mean_std(deltas, 3)))
     sections.append("## Table 2: Pmax = 100\n\n"
-                    + markdown(("Method", "certified", "t [s]", "Param. [LUT6]", "synth. logic [LUT]",
-                                "synth. memory [LUT]", "Change [%]",
+                    + markdown(("Method", "certified", "t [s]", "patch logic [LUT]",
+                                "patch memory [LUT]", "patch [LUT]", "Change [%]",
                                 "mean \\|Δ\\|"), rows))
 
     rows = []

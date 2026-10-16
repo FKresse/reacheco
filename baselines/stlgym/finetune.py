@@ -23,7 +23,8 @@ after 420 steps.
   each): 10,000 fresh closing starts in the braking invariant ``0 < p <= P,
   v <= 0, p >= v^2 / 200 + 1e-4`` (90% area-uniform, 10% on its boundary) and 1,000
   fixed starts from ``X_0`` (the boundary-160 initial set cut at ``P``, 10% at
-  its frontier), with the ACC task reward. Point trajectories, no tube checks:
+  its frontier), with the ACC task reward. The starts do not depend on the seed: all
+  seeds are checked on the same states. Point trajectories, no tube checks:
   empirical safety, not a certificate. (The prototype drew both velocity signs,
   following NCubeV's ``p >= v^2 / 200``; for ``v > 0`` those starts are moving
   apart and not hard, so here they are closing states only.)
@@ -197,7 +198,7 @@ class Checks(BaseCallback):
         return True
 
     def check(self, model, decile):
-        starts = check_starts(self.arguments.check_samples, self.arguments.seed * 100_000 + 1000 + decile,
+        starts = check_starts(self.arguments.check_samples, 1000 + decile,
                               self.arguments.position_max)
         entry = {"percent": 10 * decile, "step": int(model.num_timesteps), "seconds": time.monotonic() - self.started,
                  "invariant": evaluate(model, starts, self.arguments.horizon),
@@ -228,7 +229,7 @@ def finetune(arguments):
                           - actor_action(actor, probe).clamp(-1, 1).numpy()).max())
     if parity > 1e-6:
         raise RuntimeError(f"the copied actor differs from the controller by {parity}")
-    x0 = x0_starts(arguments.position_max, arguments.x0_episodes, arguments.seed * 100_000 + 50_000)
+    x0 = x0_starts(arguments.position_max, arguments.x0_episodes, 50_000)
     checks = Checks(arguments, x0, started)
     checks.check(model, 0)
     model.learn(total_timesteps=arguments.total_timesteps, callback=checks)

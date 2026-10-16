@@ -63,20 +63,12 @@ def report(output):
     return None
 
 
-def patch_lut6(output):
-    """Patch size in LUT6 of the run's ``controller.pt`` (``circuit``), cached in ``patch_circuit.json``."""
-    controller, cached = Path(output) / "controller.pt", Path(output) / "patch_circuit.json"
-    if cached.exists() and cached.stat().st_mtime >= controller.stat().st_mtime:
-        return json.loads(cached.read_text())["total_lut6"]
-    from circuit.measure import measure
-    return measure(controller)["total_lut6"]
-
-
 def synthesized_patch(output):
-    """Synthesized patch LUTs of the run (``scripts/synthesize.py``) as ``(logic, memory)``, or ``None``.
+    """Synthesized patch LUTs of the run (``scripts/synthesize.py``) as ``(logic, memory, total)``, or ``None``.
 
-    ``logic`` (guards, address encoder, adders; LUT as Logic, without the pipeline's
-    shift-register LUTs) compares with the LUT6 estimate, ``memory`` is the correction memory's block.
+    ``logic``: guards, address encoder and adders (LUT as Logic); ``memory``: the
+    correction ROM and the shift-register LUTs of the pipeline's delay registers;
+    ``total = logic + memory``, all LUTs of the patch block.
     """
     path = Path(output) / "synthesis" / "synthesis.json"
     if not path.exists():
@@ -86,7 +78,8 @@ def synthesized_patch(output):
         raise ValueError(f"{path} predates the separate memory block; rerun scripts/synthesize.py --force")
     if "lut_logic" not in summary["logic"]:
         raise ValueError(f"{path} predates the shift-register split; run scripts/synthesize.py --summarize")
-    return int(summary["logic"]["lut_logic"]), int(summary["memory"]["lut"])
+    logic, memory = int(summary["logic"]["lut_logic"]), int(summary["memory"]["lut"] + summary["logic"]["srl"])
+    return logic, memory, logic + memory
 
 
 def evaluation(output):
