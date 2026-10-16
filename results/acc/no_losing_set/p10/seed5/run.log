@@ -1,0 +1,4 @@
+repair 0: failure at step 2 (8 boxes), repaired, 6 cells changed, L +0, 0.1 s
+repair 1: failure at step 3 (8 boxes), repaired, 5 cells changed, L +0, 0.2 s
+repair 2: failure at step 4 (4 boxes), repaired, 2 cells changed, L +0, 0.4 s
+safe (horizon inf, reason None) after 3 repairs, 3.0 s; 13 changed cells (13 before pruning)

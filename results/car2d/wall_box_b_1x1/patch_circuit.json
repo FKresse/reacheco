@@ -1,0 +1,21 @@
+{
+ "label": "/nfs/scistore16/tomgrp/fkresse/difflogic/test/reacheco/results/car2d/wall_box_b_1x1",
+ "clusters": 39,
+ "cells_repaired": 39,
+ "guard_lut6": 60,
+ "encoder_lut6": 20,
+ "adder_lut6": 20,
+ "total_lut6": 100,
+ "memory_bits": 400,
+ "controller_lut6": 1687.8365916681091,
+ "verification": {
+  "scope": "exhaustive",
+  "grid_cells": 40000,
+  "cells_checked": 40000,
+  "cells_matching_a_cluster": 39,
+  "cells_repaired": 39,
+  "exact": true
+ },
+ "percent_of_controller": 5.924744166209171,
+ "controller": "/nfs/scistore16/tomgrp/fkresse/difflogic/test/reacheco/results/car2d/wall_box_b_1x1/controller.pt"
+}

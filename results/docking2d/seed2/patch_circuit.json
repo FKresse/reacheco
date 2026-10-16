@@ -1,0 +1,14 @@
+{
+ "label": "/nfs/scistore16/tomgrp/fkresse/difflogic/test/reacheco/results/docking2d/seed2",
+ "clusters": 0,
+ "cells_repaired": 0,
+ "guard_lut6": 0,
+ "encoder_lut6": 0,
+ "adder_lut6": 0,
+ "total_lut6": 0,
+ "memory_bits": 0,
+ "controller_lut6": 3392.5032583347756,
+ "verification": null,
+ "percent_of_controller": 0.0,
+ "controller": "/nfs/scistore16/tomgrp/fkresse/difflogic/test/reacheco/results/docking2d/seed2/controller.pt"
+}

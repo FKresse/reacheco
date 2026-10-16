@@ -1,0 +1,49 @@
+{
+ "status": "safe",
+ "horizon": 200.0,
+ "reason": null,
+ "seconds": 3.5164522439881694,
+ "overrides": 108,
+ "pruned_cells": 0,
+ "losing_boxes": 0,
+ "repairs": [
+  {
+   "failure_step": 1,
+   "failing": 111,
+   "status": "repaired",
+   "reason": null,
+   "changed_cells": 106,
+   "losing_added": 0,
+   "protected_cells": 111,
+   "seconds": 0.12758902099449188,
+   "expansion_seconds": 0.04306535900104791,
+   "solving_seconds": 0.000297204009257257,
+   "nodes": 1179,
+   "pieces": 21335,
+   "findcont_calls": 1,
+   "horizon_1": 700,
+   "joint_optimal": 1,
+   "joint_seconds": 0.011485629991511814,
+   "restart": 0
+  },
+  {
+   "failure_step": 2,
+   "failing": 6,
+   "status": "repaired",
+   "reason": null,
+   "changed_cells": 2,
+   "losing_added": 0,
+   "protected_cells": 7,
+   "seconds": 0.042189863001112826,
+   "expansion_seconds": 0.012532851993455552,
+   "solving_seconds": 0.00023972700000740588,
+   "nodes": 6,
+   "pieces": 132,
+   "findcont_calls": 1,
+   "horizon_1": 6,
+   "joint_optimal": 1,
+   "joint_seconds": 0.0031073749996721745,
+   "restart": 0
+  }
+ ]
+}

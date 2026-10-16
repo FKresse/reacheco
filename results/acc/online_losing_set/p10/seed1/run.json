@@ -1,0 +1,17 @@
+{
+ "command": [
+  "/nfs/scistore23/chlgrp/fkresse/venvs/reacheco/bin/python",
+  "/nfs/scistore16/tomgrp/fkresse/difflogic/test/reacheco/scripts/repair.py",
+  "--problem",
+  "/nfs/scistore16/tomgrp/fkresse/difflogic/test/reacheco/problems/acc/boundary160_collision_10.json",
+  "--checkpoint",
+  "/nfs/scistore16/tomgrp/fkresse/difflogic/test/reacheco/checkpoints/acc/dwc_b81_seed1.pt",
+  "--backend",
+  "/nfs/scistore16/tomgrp/fkresse/difflogic/test/reacheco/backends/acc_game_11.json",
+  "--output",
+  "/nfs/scistore16/tomgrp/fkresse/difflogic/test/reacheco/results/acc/online_losing_set/p10/seed1"
+ ],
+ "commit": "c90beaec123564197d22d032f4c2224def11bdac",
+ "uncommitted_changes": false,
+ "device": "NVIDIA L40S"
+}

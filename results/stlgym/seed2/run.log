@@ -1,0 +1,15 @@
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+0%: step 0, invariant unsafe 1360, X0 safe 86.4%, X0 reward 3288
+10%: step 20480, invariant unsafe 2286, X0 safe 76.9%, X0 reward 2690
+20%: step 40960, invariant unsafe 1368, X0 safe 86.4%, X0 reward 3273
+30%: step 61440, invariant unsafe 1826, X0 safe 81.8%, X0 reward 3013
+40%: step 81920, invariant unsafe 3893, X0 safe 61.2%, X0 reward 1778
+50%: step 100352, invariant unsafe 1071, X0 safe 95.5%, X0 reward 3840
+60%: step 120832, invariant unsafe 890, X0 safe 99.8%, X0 reward 4101
+70%: step 141312, invariant unsafe 832, X0 safe 99.8%, X0 reward 40
+80%: step 161792, invariant unsafe 929, X0 safe 99.8%, X0 reward 4105
+90%: step 180224, invariant unsafe 1005, X0 safe 99.8%, X0 reward 4109
+100%: step 200704, invariant unsafe 442, X0 safe 100.0%, X0 reward 4089
+49 s; invariant unsafe 442/10000; change 38.1%, mean |delta| 0.139

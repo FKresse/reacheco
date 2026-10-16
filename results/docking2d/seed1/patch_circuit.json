@@ -1,0 +1,21 @@
+{
+ "label": "/nfs/scistore16/tomgrp/fkresse/difflogic/test/reacheco/results/docking2d/seed1",
+ "clusters": 5,
+ "cells_repaired": 5,
+ "guard_lut6": 13,
+ "encoder_lut6": 3,
+ "adder_lut6": 22,
+ "total_lut6": 38,
+ "memory_bits": 108,
+ "controller_lut6": 3392.5032583347756,
+ "verification": {
+  "scope": "every repaired cell plus a uniform sample",
+  "grid_cells": 688747536,
+  "cells_checked": 3988232,
+  "cells_matching_a_cluster": 5,
+  "cells_repaired": 5,
+  "exact": false
+ },
+ "percent_of_controller": 1.1201168313292191,
+ "controller": "/nfs/scistore16/tomgrp/fkresse/difflogic/test/reacheco/results/docking2d/seed1/controller.pt"
+}

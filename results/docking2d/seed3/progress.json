@@ -1,0 +1,141 @@
+{
+ "pass": 3,
+ "quadrant": 0,
+ "clean": true,
+ "policy": "/nfs/scistore16/tomgrp/fkresse/difflogic/test/reacheco/results/docking2d/seed3/pass_02/vx1_vy1/controller.pt",
+ "committed": "/nfs/scistore16/tomgrp/fkresse/difflogic/test/reacheco/results/docking2d/seed3/pass_02/vx1_vy1/committed.pt",
+ "runs": [
+  {
+   "pass": 0,
+   "quadrant": "vx0_vy0",
+   "status": "safe",
+   "reason": null,
+   "repairs": 449,
+   "changed_cells": 3291,
+   "committed": 3242,
+   "new_committed": 3242,
+   "seconds": 360.9
+  },
+  {
+   "pass": 0,
+   "quadrant": "vx0_vy1",
+   "status": "safe",
+   "reason": null,
+   "repairs": 417,
+   "changed_cells": 10,
+   "committed": 3252,
+   "new_committed": 10,
+   "seconds": 304.0
+  },
+  {
+   "pass": 0,
+   "quadrant": "vx1_vy0",
+   "status": "safe",
+   "reason": null,
+   "repairs": 451,
+   "changed_cells": 7,
+   "committed": 3259,
+   "new_committed": 7,
+   "seconds": 360.3
+  },
+  {
+   "pass": 0,
+   "quadrant": "vx1_vy1",
+   "status": "safe",
+   "reason": null,
+   "repairs": 440,
+   "changed_cells": 0,
+   "committed": 3259,
+   "new_committed": 0,
+   "seconds": 334.0
+  },
+  {
+   "pass": 1,
+   "quadrant": "vx0_vy0",
+   "status": "safe",
+   "reason": null,
+   "repairs": 443,
+   "changed_cells": 1,
+   "committed": 3260,
+   "new_committed": 1,
+   "seconds": 327.3
+  },
+  {
+   "pass": 1,
+   "quadrant": "vx0_vy1",
+   "status": "safe",
+   "reason": null,
+   "repairs": 417,
+   "changed_cells": 0,
+   "committed": 3260,
+   "new_committed": 0,
+   "seconds": 309.2
+  },
+  {
+   "pass": 1,
+   "quadrant": "vx1_vy0",
+   "status": "safe",
+   "reason": null,
+   "repairs": 451,
+   "changed_cells": 0,
+   "committed": 3260,
+   "new_committed": 0,
+   "seconds": 352.1
+  },
+  {
+   "pass": 1,
+   "quadrant": "vx1_vy1",
+   "status": "safe",
+   "reason": null,
+   "repairs": 440,
+   "changed_cells": 0,
+   "committed": 3260,
+   "new_committed": 0,
+   "seconds": 303.3
+  },
+  {
+   "pass": 2,
+   "quadrant": "vx0_vy0",
+   "status": "safe",
+   "reason": null,
+   "repairs": 443,
+   "changed_cells": 0,
+   "committed": 3260,
+   "new_committed": 0,
+   "seconds": 313.6
+  },
+  {
+   "pass": 2,
+   "quadrant": "vx0_vy1",
+   "status": "safe",
+   "reason": null,
+   "repairs": 417,
+   "changed_cells": 0,
+   "committed": 3260,
+   "new_committed": 0,
+   "seconds": 278.2
+  },
+  {
+   "pass": 2,
+   "quadrant": "vx1_vy0",
+   "status": "safe",
+   "reason": null,
+   "repairs": 451,
+   "changed_cells": 0,
+   "committed": 3260,
+   "new_committed": 0,
+   "seconds": 345.4
+  },
+  {
+   "pass": 2,
+   "quadrant": "vx1_vy1",
+   "status": "safe",
+   "reason": null,
+   "repairs": 440,
+   "changed_cells": 0,
+   "committed": 3260,
+   "new_committed": 0,
+   "seconds": 336.1
+  }
+ ]
+}

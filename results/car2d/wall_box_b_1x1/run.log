@@ -1,0 +1,15 @@
+repair 0: failure at step 3 (2 boxes), repaired, 1 cells changed, L +12, 0.2 s
+repair 1: failure at step 4 (52 boxes), repaired, 5 cells changed, L +91, 0.7 s
+repair 2: failure at step 7 (12 boxes), repaired, 1 cells changed, L +0, 0.2 s
+repair 3: failure at step 8 (121 boxes), repaired, 28 cells changed, L +34, 2.4 s
+repair 4: failure at step 9 (93 boxes), repaired, 5 cells changed, L +0, 0.7 s
+repair 5: failure at step 10 (117 boxes), repaired, 7 cells changed, L +3, 8.2 s
+repair 6: failure at step 11 (86 boxes), repaired, 0 cells changed, L +0, 2.3 s
+repair 7: failure at step 12 (103 boxes), repaired, 6 cells changed, L +2, 2.5 s
+repair 8: failure at step 13 (94 boxes), repaired, 0 cells changed, L +0, 1.9 s
+repair 9: failure at step 14 (93 boxes), repaired, 0 cells changed, L +0, 1.4 s
+repair 10: failure at step 15 (85 boxes), repaired, 0 cells changed, L +0, 1.1 s
+repair 11: failure at step 16 (73 boxes), repaired, 0 cells changed, L +0, 1.1 s
+repair 12: failure at step 17 (42 boxes), repaired, 0 cells changed, L +0, 0.9 s
+repair 13: failure at step 18 (12 boxes), repaired, 0 cells changed, L +0, 0.9 s
+safe (horizon inf, reason None) after 14 repairs, 42.0 s; 39 changed cells (40 before pruning)

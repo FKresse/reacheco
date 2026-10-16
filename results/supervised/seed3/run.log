@@ -1,0 +1,6 @@
+round 0: {'status': 'unknown', 'explored_steps': 50, 'failing_boxes': 244, 'repair_examples': 3298, 'surviving_boxes': 79}
+round 1: {'status': 'unknown', 'explored_steps': 50, 'failing_boxes': 8, 'repair_examples': 10, 'surviving_boxes': 49}
+round 2: {'status': 'unknown', 'explored_steps': 50, 'failing_boxes': 1, 'repair_examples': 1, 'surviving_boxes': 68}
+round 3: {'status': 'unknown', 'explored_steps': 50, 'failing_boxes': 2, 'repair_examples': 2, 'surviving_boxes': 78}
+round 4: {'status': 'safe', 'explored_steps': 50, 'failing_boxes': 0, 'repair_examples': 0, 'surviving_boxes': 71}
+safe after 5 rounds, 25 s; change 84.33%

@@ -1,0 +1,20 @@
+pass 0 vx0_vy0: 0 committed constraints
+  repair at step 409: repaired, 1 cells, 0 s
+  repair at step 430: repaired, 0 cells, 0 s
+  repair at step 431: repaired, 1 cells, 0 s
+  repair at step 432: repaired, 3 cells, 0 s
+  safe: 4 repairs, 5 cells, 5 committed constraints (+5), 120 s
+pass 0 vx0_vy1: 5 committed constraints
+  safe: 0 repairs, 0 cells, 5 committed constraints (+0), 112 s
+pass 0 vx1_vy0: 5 committed constraints
+  safe: 0 repairs, 0 cells, 5 committed constraints (+0), 115 s
+pass 0 vx1_vy1: 5 committed constraints
+  safe: 0 repairs, 0 cells, 5 committed constraints (+0), 115 s
+pass 1 vx0_vy0: 5 committed constraints
+  safe: 0 repairs, 0 cells, 5 committed constraints (+0), 112 s
+pass 1 vx0_vy1: 5 committed constraints
+  safe: 0 repairs, 0 cells, 5 committed constraints (+0), 114 s
+pass 1 vx1_vy0: 5 committed constraints
+  safe: 0 repairs, 0 cells, 5 committed constraints (+0), 109 s
+pass 1 vx1_vy1: 5 committed constraints
+  safe: 0 repairs, 0 cells, 5 committed constraints (+0), 107 s

@@ -1,0 +1,233 @@
+{
+ "status": "trained",
+ "seconds": 45.862062255997444,
+ "steps": 200704,
+ "change_percent": 38.121,
+ "mean_abs_delta": 0.18168581042535603,
+ "checks": [
+  {
+   "percent": 0,
+   "step": 0,
+   "seconds": 1.061674383992795,
+   "invariant": {
+    "episodes": 10000,
+    "unsafe": 1360,
+    "safe_percent": 86.4,
+    "reward_mean": 3288.2255927768706,
+    "reward_std": 2096.1242008993604
+   },
+   "x0": {
+    "episodes": 1000,
+    "unsafe": 136,
+    "safe_percent": 86.4,
+    "reward_mean": 3287.6650140504835,
+    "reward_std": 2095.115999777301
+   }
+  },
+  {
+   "percent": 10,
+   "step": 20480,
+   "seconds": 5.685653213004116,
+   "invariant": {
+    "episodes": 10000,
+    "unsafe": 1345,
+    "safe_percent": 86.55000000000001,
+    "reward_mean": 3281.2455202444316,
+    "reward_std": 2080.1164340681894
+   },
+   "x0": {
+    "episodes": 1000,
+    "unsafe": 135,
+    "safe_percent": 86.5,
+    "reward_mean": 3278.7438884208204,
+    "reward_std": 2082.604199867547
+   }
+  },
+  {
+   "percent": 20,
+   "step": 40960,
+   "seconds": 8.694188026012853,
+   "invariant": {
+    "episodes": 10000,
+    "unsafe": 1178,
+    "safe_percent": 88.22,
+    "reward_mean": 1928.342531186831,
+    "reward_std": 2382.3680986308386
+   },
+   "x0": {
+    "episodes": 1000,
+    "unsafe": 114,
+    "safe_percent": 88.6,
+    "reward_mean": 1874.1231688344478,
+    "reward_std": 2369.522428562337
+   }
+  },
+  {
+   "percent": 30,
+   "step": 61440,
+   "seconds": 16.702822180988733,
+   "invariant": {
+    "episodes": 10000,
+    "unsafe": 1246,
+    "safe_percent": 87.53999999999999,
+    "reward_mean": 3358.1820411438944,
+    "reward_std": 2020.5237525408907
+   },
+   "x0": {
+    "episodes": 1000,
+    "unsafe": 118,
+    "safe_percent": 88.2,
+    "reward_mean": 3398.009130070329,
+    "reward_std": 1972.5849463698335
+   }
+  },
+  {
+   "percent": 40,
+   "step": 81920,
+   "seconds": 22.13709612900857,
+   "invariant": {
+    "episodes": 10000,
+    "unsafe": 1086,
+    "safe_percent": 89.14,
+    "reward_mean": 3461.002803705001,
+    "reward_std": 1905.9806322238662
+   },
+   "x0": {
+    "episodes": 1000,
+    "unsafe": 65,
+    "safe_percent": 93.5,
+    "reward_mean": 3726.997667445421,
+    "reward_std": 1509.3385062426064
+   }
+  },
+  {
+   "percent": 50,
+   "step": 100352,
+   "seconds": 26.255203287000768,
+   "invariant": {
+    "episodes": 10000,
+    "unsafe": 1022,
+    "safe_percent": 89.78,
+    "reward_mean": 3502.9498816052674,
+    "reward_std": 1856.9693069105556
+   },
+   "x0": {
+    "episodes": 1000,
+    "unsafe": 12,
+    "safe_percent": 98.8,
+    "reward_mean": 4052.5825829616783,
+    "reward_std": 668.009414788856
+   }
+  },
+  {
+   "percent": 60,
+   "step": 120832,
+   "seconds": 29.65663465799298,
+   "invariant": {
+    "episodes": 10000,
+    "unsafe": 1006,
+    "safe_percent": 89.94,
+    "reward_mean": 3513.3905974783897,
+    "reward_std": 1844.2281939690974
+   },
+   "x0": {
+    "episodes": 1000,
+    "unsafe": 11,
+    "safe_percent": 98.9,
+    "reward_mean": 4058.364633508444,
+    "reward_std": 639.9394463923651
+   }
+  },
+  {
+   "percent": 70,
+   "step": 141312,
+   "seconds": 33.1409147180093,
+   "invariant": {
+    "episodes": 10000,
+    "unsafe": 677,
+    "safe_percent": 93.23,
+    "reward_mean": 3716.8511628532888,
+    "reward_std": 1540.946068605647
+   },
+   "x0": {
+    "episodes": 1000,
+    "unsafe": 0,
+    "safe_percent": 100.0,
+    "reward_mean": 4128.963792440772,
+    "reward_std": 35.73142160684397
+   }
+  },
+  {
+   "percent": 80,
+   "step": 161792,
+   "seconds": 37.74810365101439,
+   "invariant": {
+    "episodes": 10000,
+    "unsafe": 849,
+    "safe_percent": 91.51,
+    "reward_mean": 3582.58602695359,
+    "reward_std": 1700.8136083815907
+   },
+   "x0": {
+    "episodes": 1000,
+    "unsafe": 2,
+    "safe_percent": 99.8,
+    "reward_mean": 4084.7147891118525,
+    "reward_std": 274.94644248855434
+   }
+  },
+  {
+   "percent": 90,
+   "step": 180224,
+   "seconds": 41.674929038010305,
+   "invariant": {
+    "episodes": 10000,
+    "unsafe": 1008,
+    "safe_percent": 89.92,
+    "reward_mean": 3472.836368100691,
+    "reward_std": 1832.7519476205239
+   },
+   "x0": {
+    "episodes": 1000,
+    "unsafe": 11,
+    "safe_percent": 98.9,
+    "reward_mean": 4011.9887771503927,
+    "reward_std": 635.4237064613822
+   }
+  },
+  {
+   "percent": 100,
+   "step": 200704,
+   "seconds": 45.55802132800454,
+   "invariant": {
+    "episodes": 10000,
+    "unsafe": 936,
+    "safe_percent": 90.64,
+    "reward_mean": -496.8955245189309,
+    "reward_std": 489.5066374944115
+   },
+   "x0": {
+    "episodes": 1000,
+    "unsafe": 2,
+    "safe_percent": 99.8,
+    "reward_mean": -333.22787488150595,
+    "reward_std": 111.33190805862479
+   }
+  }
+ ],
+ "arguments": {
+  "seed": "0",
+  "output": "/nfs/scistore16/tomgrp/fkresse/difflogic/test/reacheco/results/stlgym/seed0",
+  "position_max": "100.0",
+  "total_timesteps": "200000",
+  "check_samples": "10000",
+  "x0_episodes": "1000",
+  "horizon": "420",
+  "learning_rate": "0.0003",
+  "gamma": "0.99",
+  "n_envs": "8",
+  "n_steps": "256",
+  "batch_size": "64",
+  "n_epochs": "10"
+ }
+}

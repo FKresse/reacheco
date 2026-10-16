@@ -1,0 +1,21 @@
+{
+ "label": "/nfs/scistore16/tomgrp/fkresse/difflogic/test/reacheco/results/acc/invariant/p100/seed5",
+ "clusters": 93,
+ "cells_repaired": 93,
+ "guard_lut6": 162,
+ "encoder_lut6": 59,
+ "adder_lut6": 9,
+ "total_lut6": 230,
+ "memory_bits": 658,
+ "controller_lut6": 418.2516291673878,
+ "verification": {
+  "scope": "exhaustive",
+  "grid_cells": 6724,
+  "cells_checked": 6724,
+  "cells_matching_a_cluster": 93,
+  "cells_repaired": 93,
+  "exact": true
+ },
+ "percent_of_controller": 54.99081987029202,
+ "controller": "/nfs/scistore16/tomgrp/fkresse/difflogic/test/reacheco/results/acc/invariant/p100/seed5/controller.pt"
+}

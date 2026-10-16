@@ -1,0 +1,8 @@
+pass 0 vx0_vy0: 0 committed constraints
+  safe: 0 repairs, 0 cells, 0 committed constraints (+0), 381 s
+pass 0 vx0_vy1: 0 committed constraints
+  safe: 0 repairs, 0 cells, 0 committed constraints (+0), 328 s
+pass 0 vx1_vy0: 0 committed constraints
+  safe: 0 repairs, 0 cells, 0 committed constraints (+0), 316 s
+pass 0 vx1_vy1: 0 committed constraints
+  safe: 0 repairs, 0 cells, 0 committed constraints (+0), 326 s

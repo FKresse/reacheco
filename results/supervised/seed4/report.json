@@ -1,0 +1,92 @@
+{
+ "status": "safe",
+ "seconds": 28.156098974999622,
+ "finetuning_seconds": 26.7463034879911,
+ "verification_seconds": 1.4097954870085232,
+ "failure_step": null,
+ "rounds": [
+  {
+   "round": 0,
+   "status": "unknown",
+   "explored_steps": 50,
+   "failing_boxes": 807,
+   "repair_examples": 5349,
+   "surviving_boxes": 107,
+   "training": {
+    "mean_loss": 0.049701250354293736,
+    "last_loss": 0.008427737280726433
+   }
+  },
+  {
+   "round": 1,
+   "status": "unknown",
+   "explored_steps": 50,
+   "failing_boxes": 148,
+   "repair_examples": 575,
+   "surviving_boxes": 83,
+   "training": {
+    "mean_loss": 0.0038737019620020876,
+    "last_loss": 0.0022171111777424812
+   }
+  },
+  {
+   "round": 2,
+   "status": "unknown",
+   "explored_steps": 50,
+   "failing_boxes": 6,
+   "repair_examples": 6,
+   "surviving_boxes": 102,
+   "training": {
+    "mean_loss": 0.0020452657969726716,
+    "last_loss": 0.0018972593825310469
+   }
+  },
+  {
+   "round": 3,
+   "status": "unknown",
+   "explored_steps": 50,
+   "failing_boxes": 41,
+   "repair_examples": 125,
+   "surviving_boxes": 108,
+   "training": {
+    "mean_loss": 0.0016880794160533696,
+    "last_loss": 0.001123719965107739
+   }
+  },
+  {
+   "round": 4,
+   "status": "unknown",
+   "explored_steps": 50,
+   "failing_boxes": 1,
+   "repair_examples": 3,
+   "surviving_boxes": 98,
+   "training": {
+    "mean_loss": 0.0014281334989354945,
+    "last_loss": 0.0013332664966583252
+   }
+  },
+  {
+   "round": 5,
+   "status": "safe",
+   "explored_steps": 50,
+   "failing_boxes": 0,
+   "repair_examples": 0,
+   "surviving_boxes": 104
+  }
+ ],
+ "change_percent": 100.0,
+ "mean_abs_delta": 0.37072521448135376,
+ "clean_attempted": 100064,
+ "arguments": {
+  "seed": "4",
+  "output": "/nfs/scistore16/tomgrp/fkresse/difflogic/test/reacheco/results/supervised/seed4",
+  "problem": "/nfs/scistore16/tomgrp/fkresse/difflogic/test/reacheco/problems/acc/boundary160_invariant_100.json",
+  "horizon": "50",
+  "rounds": "10",
+  "clean_transitions": "100000",
+  "iterations": "1000",
+  "batch_size": "256",
+  "learning_rate": "0.0003",
+  "target": "1.05"
+ }
+}

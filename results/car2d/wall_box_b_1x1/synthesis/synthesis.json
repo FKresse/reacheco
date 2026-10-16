@@ -1,0 +1,99 @@
+{
+ "part": "xc7a100tfgg484-1",
+ "period_ns": 10.0,
+ "input_word_bits": 12,
+ "pipe_stages": 3,
+ "latency_cycles": 8,
+ "cells_simulated": 0,
+ "estimate": {
+  "lut6": 100,
+  "memory_lut6": 10,
+  "lut6_with_memory": 110
+ },
+ "base": {
+  "simulation": null,
+  "lut": 1969.0,
+  "lut_logic": 1969.0,
+  "srl": 0.0,
+  "ff": 1708.0,
+  "carry": 126.0,
+  "lutram": 0.0,
+  "muxf7": 0.0,
+  "bram": 0.0,
+  "wns_ns": 1.156,
+  "fmax_mhz": 113.07100859339666
+ },
+ "patched": {
+  "simulation": null,
+  "lut": 2045.0,
+  "lut_logic": 2040.0,
+  "srl": 5.0,
+  "ff": 1771.0,
+  "carry": 129.0,
+  "lutram": 5.0,
+  "muxf7": 0.0,
+  "bram": 0.0,
+  "wns_ns": 1.328,
+  "fmax_mhz": 115.31365313653136,
+  "patch_cells": {
+   "lut": 76.0,
+   "lut_logic": 71.0,
+   "srl": 5.0,
+   "ff": 62.0,
+   "carry": 3.0,
+   "lutram": 5.0,
+   "muxf7": 0.0,
+   "bram": 0.0
+  },
+  "memory_cells": {
+   "lut": 7.0,
+   "lut_logic": 7.0,
+   "srl": 0.0,
+   "ff": 0.0,
+   "carry": 0.0,
+   "lutram": 0.0,
+   "muxf7": 0.0,
+   "bram": 0.0
+  }
+ },
+ "patch": {
+  "lut": 76.0,
+  "lut_logic": 71.0,
+  "srl": 5.0,
+  "ff": 62.0,
+  "carry": 3.0,
+  "lutram": 5.0,
+  "muxf7": 0.0,
+  "bram": 0.0
+ },
+ "memory": {
+  "lut": 7.0,
+  "lut_logic": 7.0,
+  "srl": 0.0,
+  "ff": 0.0,
+  "carry": 0.0,
+  "lutram": 0.0,
+  "muxf7": 0.0,
+  "bram": 0.0
+ },
+ "logic": {
+  "lut": 69.0,
+  "lut_logic": 64.0,
+  "srl": 5.0,
+  "ff": 62.0,
+  "carry": 3.0,
+  "lutram": 5.0,
+  "muxf7": 0.0,
+  "bram": 0.0
+ },
+ "difference": {
+  "lut": 76.0,
+  "lut_logic": 71.0,
+  "srl": 5.0,
+  "ff": 63.0,
+  "carry": 3.0,
+  "lutram": 5.0,
+  "muxf7": 0.0,
+  "bram": 0.0
+ }
+}

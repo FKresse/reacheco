@@ -1,0 +1,68 @@
+{
+ "status": "safe",
+ "seconds": 23.931669404992135,
+ "finetuning_seconds": 23.121074490001774,
+ "verification_seconds": 0.8105949149903608,
+ "failure_step": null,
+ "rounds": [
+  {
+   "round": 0,
+   "status": "unknown",
+   "explored_steps": 50,
+   "failing_boxes": 657,
+   "repair_examples": 5418,
+   "surviving_boxes": 37,
+   "training": {
+    "mean_loss": 0.020952661241870372,
+    "last_loss": 0.002644120715558529
+   }
+  },
+  {
+   "round": 1,
+   "status": "unknown",
+   "explored_steps": 50,
+   "failing_boxes": 18,
+   "repair_examples": 31,
+   "surviving_boxes": 47,
+   "training": {
+    "mean_loss": 0.0023836519048782067,
+    "last_loss": 0.0032887496054172516
+   }
+  },
+  {
+   "round": 2,
+   "status": "unknown",
+   "explored_steps": 50,
+   "failing_boxes": 4,
+   "repair_examples": 5,
+   "surviving_boxes": 34,
+   "training": {
+    "mean_loss": 0.001374876482790569,
+    "last_loss": 0.0008866863790899515
+   }
+  },
+  {
+   "round": 3,
+   "status": "safe",
+   "explored_steps": 50,
+   "failing_boxes": 0,
+   "repair_examples": 0,
+   "surviving_boxes": 55
+  }
+ ],
+ "change_percent": 100.0,
+ "mean_abs_delta": 0.2618352174758911,
+ "clean_attempted": 100064,
+ "arguments": {
+  "seed": "5",
+  "output": "/nfs/scistore16/tomgrp/fkresse/difflogic/test/reacheco/results/supervised/seed5",
+  "problem": "/nfs/scistore16/tomgrp/fkresse/difflogic/test/reacheco/problems/acc/boundary160_invariant_100.json",
+  "horizon": "50",
+  "rounds": "10",
+  "clean_transitions": "100000",
+  "iterations": "1000",
+  "batch_size": "256",
+  "learning_rate": "0.0003",
+  "target": "1.05"
+ }
+}

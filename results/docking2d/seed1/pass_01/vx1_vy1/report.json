@@ -1,0 +1,10 @@
+{
+ "status": "safe",
+ "horizon": Infinity,
+ "reason": null,
+ "seconds": 107.21823246699932,
+ "overrides": 5,
+ "pruned_cells": 0,
+ "losing_boxes": 0,
+ "repairs": []
+}

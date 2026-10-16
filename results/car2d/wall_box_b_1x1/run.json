@@ -1,0 +1,17 @@
+{
+ "command": [
+  "/nfs/scistore23/chlgrp/fkresse/venvs/reacheco/bin/python",
+  "/nfs/scistore16/tomgrp/fkresse/difflogic/test/reacheco/scripts/repair.py",
+  "--problem",
+  "/nfs/scistore16/tomgrp/fkresse/difflogic/test/reacheco/problems/car2d/wall_box_b_1x1.json",
+  "--checkpoint",
+  "/nfs/scistore16/tomgrp/fkresse/difflogic/test/reacheco/checkpoints/car2d/wall_dwc20x20x10x10_seed0.pt",
+  "--backend",
+  "/nfs/scistore16/tomgrp/fkresse/difflogic/test/reacheco/backends/car2d_local.json",
+  "--output",
+  "/nfs/scistore16/tomgrp/fkresse/difflogic/test/reacheco/results/car2d/wall_box_b_1x1"
+ ],
+ "commit": "c90beaec123564197d22d032f4c2224def11bdac",
+ "uncommitted_changes": false,
+ "device": "NVIDIA L40S"
+}

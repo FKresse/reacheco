@@ -1,0 +1,53 @@
+{
+ "pass": 1,
+ "quadrant": 0,
+ "clean": true,
+ "policy": "/nfs/scistore16/tomgrp/fkresse/difflogic/test/reacheco/results/docking2d/seed2/pass_00/vx1_vy1/controller.pt",
+ "committed": "/nfs/scistore16/tomgrp/fkresse/difflogic/test/reacheco/results/docking2d/seed2/pass_00/vx1_vy1/committed.pt",
+ "runs": [
+  {
+   "pass": 0,
+   "quadrant": "vx0_vy0",
+   "status": "safe",
+   "reason": null,
+   "repairs": 0,
+   "changed_cells": 0,
+   "committed": 0,
+   "new_committed": 0,
+   "seconds": 381.1
+  },
+  {
+   "pass": 0,
+   "quadrant": "vx0_vy1",
+   "status": "safe",
+   "reason": null,
+   "repairs": 0,
+   "changed_cells": 0,
+   "committed": 0,
+   "new_committed": 0,
+   "seconds": 328.4
+  },
+  {
+   "pass": 0,
+   "quadrant": "vx1_vy0",
+   "status": "safe",
+   "reason": null,
+   "repairs": 0,
+   "changed_cells": 0,
+   "committed": 0,
+   "new_committed": 0,
+   "seconds": 316.4
+  },
+  {
+   "pass": 0,
+   "quadrant": "vx1_vy1",
+   "status": "safe",
+   "reason": null,
+   "repairs": 0,
+   "changed_cells": 0,
+   "committed": 0,
+   "new_committed": 0,
+   "seconds": 326.3
+  }
+ ]
+}
